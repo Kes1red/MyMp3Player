@@ -1,43 +1,42 @@
 using System;
 using System.Globalization;
 using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using System.Windows.Data;
-using System.Windows.Media;
+using System.Windows.Controls;
 
 namespace MyMp3Player.Converters
 {
-    /// <summary>
-    /// Конвертер для преобразования значения слайдера в ширину индикатора прогресса
-    /// </summary>
     public class SliderValueToWidthConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is double sliderValue)
+            if (value is double val && parameter is Slider slider)
             {
-                var slider = parameter as Slider;
-                
-                if (slider == null)
-                {
-                    // Получаем родительский элемент (слайдер) через RelativeSource
-                    var element = value as DependencyObject;
-                    while (element != null && !(element is Slider))
-                    {
-                        element = VisualTreeHelper.GetParent(element);
-                    }
-                    slider = element as Slider;
-                }
-                
-                if (slider != null && slider.ActualWidth > 0)
-                {
-                    // Вычисляем ширину индикатора прогресса на основе значения слайдера
-                    double percent = (sliderValue - slider.Minimum) / (slider.Maximum - slider.Minimum);
-                    return slider.ActualWidth * percent;
-                }
+                return (val / slider.Maximum) * slider.ActualWidth;
             }
             return 0;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotSupportedException();
+        }
+    }
+    public class VolumeToIconConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is double volume)
+            {
+                if (volume <= 0)
+                    return "VolumeMuteIcon";
+                if (volume < 0.3)
+                    return "VolumeLowIcon";
+                if (volume < 0.7)
+                    return "VolumeMediumIcon";
+                return "VolumeHighIcon";
+            }
+            return "VolumeHighIcon";
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -45,42 +44,37 @@ namespace MyMp3Player.Converters
             throw new NotImplementedException();
         }
     }
+    
 
-    /// <summary>
-    /// Конвертер для преобразования значения слайдера в позицию ползунка
-    /// </summary>
     public class SliderValueToPositionConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is double sliderValue)
+            if (value is double val && parameter is Slider slider)
             {
-                var slider = parameter as Slider;
-                
-                if (slider == null)
-                {
-                    // Получаем родительский элемент (слайдер) через RelativeSource
-                    DependencyObject element = value as DependencyObject;
-                    while (element != null && !(element is Slider))
-                    {
-                        element = VisualTreeHelper.GetParent(element);
-                    }
-                    slider = element as Slider;
-                }
-                
-                if (slider != null && slider.ActualWidth > 0)
-                {
-                    // Вычисляем позицию ползунка на основе значения слайдера
-                    double percent = (sliderValue - slider.Minimum) / (slider.Maximum - slider.Minimum);
-                    return slider.ActualWidth * percent;
-                }
+                return (val / slider.Maximum) * slider.ActualWidth - 6;
             }
             return 0;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            throw new NotImplementedException();
+            throw new NotSupportedException();
+        }
+    }
+
+    public class BoolToVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return (value is bool b && b) ? 
+                Visibility.Visible : 
+                Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotSupportedException();
         }
     }
 }

@@ -36,53 +36,47 @@ namespace MyMp3Player.Data
                 command.ExecuteNonQuery();
             }
         }
+        
+        
 
         // Синхронный метод для сохранения плейлиста (ObservableCollection)
-        public void SavePlaylist(ObservableCollection<SongItem> playlist)
+        public void SavePlaylist(IEnumerable<SongItem> playlist)
         {
             using (var connection = new SqliteConnection($"Data Source={_dbPath}"))
             {
                 connection.Open();
-
-                // Начинаем транзакцию для обеспечения целостности данных
-                using (var transaction = connection.BeginTransaction())
+                var transaction = connection.BeginTransaction();
+            
+                try
                 {
-                    try
+                    // Очистка старого плейлиста
+                    var clearCommand = connection.CreateCommand();
+                    clearCommand.CommandText = "DELETE FROM Songs";
+                    clearCommand.ExecuteNonQuery();
+
+                    // Вставка новых записей
+                    var insertCommand = connection.CreateCommand();
+                    insertCommand.CommandText = @"INSERT INTO Songs 
+                    (Title, FilePath, Duration, PlaylistIndex) 
+                    VALUES ($title, $path, $duration, $index)";
+
+                    int index = 1;
+                    foreach (var song in playlist)
                     {
-                        // Очищаем существующие записи
-                        using (var clearCommand = connection.CreateCommand())
-                        {
-                            clearCommand.CommandText = "DELETE FROM Songs";
-                            clearCommand.ExecuteNonQuery();
-                        }
-
-                        // Добавляем новые записи
-                        for (int i = 0; i < playlist.Count; i++)
-                        {
-                            using (var insertCommand = connection.CreateCommand())
-                            {
-                                insertCommand.CommandText = @"
-                                    INSERT INTO Songs (Title, FilePath, Duration, PlaylistIndex)
-                                    VALUES ($title, $filePath, $duration, $index)";
-
-                                insertCommand.Parameters.AddWithValue("$title", playlist[i].Title);
-                                insertCommand.Parameters.AddWithValue("$filePath", playlist[i].FilePath);
-                                insertCommand.Parameters.AddWithValue("$duration", playlist[i].Duration);
-                                insertCommand.Parameters.AddWithValue("$index", i + 1);
-
-                                insertCommand.ExecuteNonQuery();
-                            }
-                        }
-
-                        // Подтверждаем транзакцию
-                        transaction.Commit();
+                        insertCommand.Parameters.Clear();
+                        insertCommand.Parameters.AddWithValue("$title", song.Title);
+                        insertCommand.Parameters.AddWithValue("$path", song.FilePath);
+                        insertCommand.Parameters.AddWithValue("$duration", song.Duration);
+                        insertCommand.Parameters.AddWithValue("$index", index++);
+                        insertCommand.ExecuteNonQuery();
                     }
-                    catch (Exception)
-                    {
-                        // В случае ошибки откатываем все изменения
-                        transaction.Rollback();
-                        throw;
-                    }
+                
+                    transaction.Commit();
+                }
+                catch
+                {
+                    transaction.Rollback();
+                    throw;
                 }
             }
         }
@@ -188,33 +182,28 @@ namespace MyMp3Player.Data
         // Асинхронный метод для загрузки плейлиста
         public async Task<ObservableCollection<SongItem>> LoadPlaylistAsync()
         {
-            var result = new ObservableCollection<SongItem>();
-
+            var playlist = new ObservableCollection<SongItem>();
             using (var connection = new SqliteConnection($"Data Source={_dbPath}"))
             {
                 await connection.OpenAsync();
-
                 var command = connection.CreateCommand();
                 command.CommandText = "SELECT Title, FilePath, Duration, PlaylistIndex FROM Songs ORDER BY PlaylistIndex";
-
+            
                 using (var reader = await command.ExecuteReaderAsync())
                 {
                     while (await reader.ReadAsync())
                     {
-                        var song = new SongItem
+                        playlist.Add(new SongItem
                         {
                             Title = reader.GetString(0),
                             FilePath = reader.GetString(1),
                             Duration = reader.GetString(2),
                             Index = reader.GetInt32(3)
-                        };
-
-                        result.Add(song);
+                        });
                     }
                 }
             }
-
-            return result;
+            return playlist;
         }
 
         // Метод для проверки существования файла базы данных
