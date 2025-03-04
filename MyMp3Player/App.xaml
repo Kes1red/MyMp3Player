@@ -1,0 +1,29 @@
+﻿<Application x:Class="MyMp3Player.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:MyMp3Player"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <!-- Ресурсы определены напрямую, без ссылок на внешние файлы -->
+        <ResourceDictionary>
+            <!-- Градиентный фон для окна -->
+            <LinearGradientBrush x:Key="BackgroundGradient" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#121212" Offset="0"/>
+                <GradientStop Color="#1E1E2A" Offset="1"/>
+            </LinearGradientBrush>
+            
+            <!-- Градиент для акцентного цвета -->
+            <LinearGradientBrush x:Key="AccentGradient" StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#1DB954" Offset="0"/>
+                <GradientStop Color="#1ED760" Offset="1"/>
+            </LinearGradientBrush>
+            
+            <!-- Эффект свечения для кнопок -->
+            <DropShadowEffect x:Key="GlowEffect" 
+                              Color="#1DB954" 
+                              BlurRadius="10" 
+                              ShadowDepth="0" 
+                              Opacity="0.7"/>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>
