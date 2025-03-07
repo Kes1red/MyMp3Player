@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -29,12 +30,15 @@ namespace MyMp3Player
         private readonly MediaPlayer _mediaPlayer = new MediaPlayer();
         private readonly DispatcherTimer _progressTimer = new DispatcherTimer();
         
+        public string CurrentSongTitle => CurrentSong?.Title ?? "Нет трека";
+        public string CurrentArtist => CurrentSong?.Artist ?? "Неизвестный исполнитель";
+        
         
         //для системы частиц
         private Random _random = new Random();
         private DispatcherTimer _particleTimer;
         private List<Ellipse> _particles = new List<Ellipse>();
-        private const int MaxParticles = 100;
+        private const int MaxParticles = 50; // Максимальное количество частиц
         
         
         private int _currentSongIndex = -1;
@@ -52,9 +56,7 @@ namespace MyMp3Player
                 if (_isMuted != value)
                 {
                     _isMuted = value;
-                    UpdateMuteState();
                     OnPropertyChanged();
-                    OnPropertyChanged(nameof(MuteIcon));
                 }
             }
         }
@@ -93,11 +95,51 @@ namespace MyMp3Player
 
         public ObservableCollection<SongItem> Playlist { get; } = new ObservableCollection<SongItem>();
         
-        public ICommand ToggleMuteCommand => new RelayCommand(ToggleMute);
+        public ICommand ToggleMuteCommand => new RelayCommand(() =>
+        {
+            if (IsMuted)
+            {
+                // Восстанавливаем предыдущую громкость при отключении мута
+                Volume = _lastVolumeBeforeMute > 0 ? _lastVolumeBeforeMute : 0.5;
+                IsMuted = false;
+            }
+            else
+            {
+                // Сохраняем текущую громкость перед включением мута
+                _lastVolumeBeforeMute = Volume;
+                IsMuted = true;
+            }
+    
+            // Обновляем MediaPlayer
+            _mediaPlayer.Volume = IsMuted ? 0 : Volume;
+    
+            // Уведомляем UI об изменениях
+            OnPropertyChanged(nameof(IsMuted));
+        });
+
         public ICommand AddTrackCommand => new RelayCommand(AddTracks);
         public ICommand PlayPauseCommand => new RelayCommand(PlayPause);
         public ICommand NextCommand => new RelayCommand(NextTrack, () => CanNavigate());
         public ICommand PreviousCommand => new RelayCommand(PreviousTrack, () => CanNavigate());
+        
+        private bool CanNavigate()
+        {
+            return Playlist.Count > 0 && CurrentSong != null;
+        }
+        
+        public ICommand UpdateSoundIconCommand => new RelayCommand(() => 
+        {
+            OnPropertyChanged(nameof(MuteIcon));
+        });
+        public ICommand ToggleRepeatCommand => new RelayCommand(() =>
+        {
+            IsRepeatEnabled = !IsRepeatEnabled;
+        });
+
+        public ICommand ToggleShuffleCommand => new RelayCommand(() =>
+        {
+            IsShuffleEnabled = !IsShuffleEnabled;
+        });
         
         
         private void ToggleMute()
@@ -120,6 +162,31 @@ namespace MyMp3Player
             }
         }
         
+        private bool _isRepeatEnabled;
+        public bool IsRepeatEnabled
+        {
+            get => _isRepeatEnabled;
+            set
+            {
+                _isRepeatEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+
+        private bool _isShuffleEnabled;
+        public bool IsShuffleEnabled
+        {
+            get => _isShuffleEnabled;
+            set
+            {
+                _isShuffleEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+        
+        
+        
+        
         private bool _isDragging;
         private TimeSpan _savedPosition;
         private void ProgressSlider_DragStarted(object sender, DragStartedEventArgs e)
@@ -139,23 +206,59 @@ namespace MyMp3Player
         
         
         
-        private bool CanNavigate() => Playlist.Count > 0;
-
-        public string MuteIcon => IsMuted ? "🔇" : 
-            Volume switch {
-                >= 0.7 => "🔊",
-                >= 0.3 => "🔉",
-                _ => "🔈"
-            };
+        public object MuteIcon
+        {
+            get
+            {
+                string resourceKey;
         
-        public double Volume {
+                if (IsMuted || Volume <= 0)
+                {
+                    resourceKey = "VolumeMuteIcon";
+                }
+                else if (Volume < 0.3)
+                {
+                    resourceKey = "VolumeLowIcon";
+                }
+                else if (Volume < 0.7)
+                {
+                    resourceKey = "VolumeMediumIcon";
+                }
+                else
+                {
+                    resourceKey = "VolumeHighIcon";
+                }
+        
+                return Application.Current.Resources[resourceKey];
+            }
+        }
+
+        
+        public double Volume 
+        {
             get => _volume;
-            set {
-                if (Math.Abs(_volume - value) > 0.01) {
+            set 
+            {
+                value = Math.Clamp(value, 0, 1);
+        
+                if (Math.Abs(_volume - value) > 0.01)
+                {
                     _volume = value;
-                    _mediaPlayer.Volume = value;
+            
+                    // Применяем громкость к плееру, учитывая состояние мута
+                    if (!IsMuted)
+                    {
+                        _mediaPlayer.Volume = value;
+                    }
+            
+                    // Если установили громкость больше 0, автоматически снимаем мут
+                    if (IsMuted && value > 0) 
+                    {
+                        IsMuted = false;
+                        _mediaPlayer.Volume = value;
+                    }
+            
                     OnPropertyChanged();
-                    OnPropertyChanged(nameof(MuteIcon)); // Добавляем уведомление об изменении иконки
                 }
             }
         }
@@ -170,6 +273,8 @@ namespace MyMp3Player
             {
                 _currentSong = value;
                 OnPropertyChanged(nameof(CurrentSong));
+                OnPropertyChanged(nameof(CurrentSongTitle)); // Добавьте эти строки
+                OnPropertyChanged(nameof(CurrentArtist));    // для обновления UI
                 if (value != null) 
                 {
                     StartPlayback(value);
@@ -184,6 +289,9 @@ namespace MyMp3Player
             {
                 _mediaPlayer.Open(new Uri(song.FilePath));
                 _mediaPlayer.Play();
+        
+                // Отладочный вывод
+                Debug.WriteLine($"Воспроизведение: {song.Title} - {song.Artist}");
         
                 // Ждем инициализации длительности
                 Dispatcher.BeginInvoke(new Action(() => 
@@ -234,7 +342,11 @@ namespace MyMp3Player
         {
             InitializeComponent();
             InitializeParticleSystem();
+            InitializePlayingIndicatorAnimation ();
             DataContext = this;
+            // MinimizeButton.Click += (s, e) => WindowState = WindowState.Minimized;
+            // MaximizeButton.Click += (s, e) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+            // CloseButton.Click += (s, e) => Close();
             
             LoadPlaylist();
         
@@ -246,7 +358,25 @@ namespace MyMp3Player
             //PreviousCommand = new RelayCommand(PreviousTrack);
 
             _mediaPlayer.MediaOpened += (s, e) => OnPropertyChanged(nameof(TotalTime));
-            _mediaPlayer.MediaEnded += (s, e) => NextTrack();
+            _mediaPlayer.MediaEnded += (s, e) => 
+            {
+                if (IsRepeatEnabled && CurrentSong != null)
+                {
+                    // Повторяем текущий трек
+                    _mediaPlayer.Position = TimeSpan.Zero;
+                    _mediaPlayer.Play();
+                }
+                else
+                {
+                    // Переходим к следующему треку
+                    NextTrack();
+                }
+            };
+            
+            _mediaPlayer.MediaOpened += (s, e) => 
+            {
+                OnPropertyChanged(nameof(MuteIcon)); // Обновляем при загрузке трека
+            };
 
             _progressTimer.Interval = TimeSpan.FromMilliseconds(500);
             _progressTimer.Tick += (s, e) => {
@@ -262,108 +392,227 @@ namespace MyMp3Player
             };
         }
         
-         private void InitializeParticleSystem()
-    {
-        _particleTimer = new DispatcherTimer
+        private void InitializeParticleSystem()
         {
-            Interval = TimeSpan.FromMilliseconds(100)
-        };
-        
-        _particleTimer.Tick += (s, e) =>
-        {
-            if (IsPlaying)
+            // Проверяем, что Canvas существует
+            if (ParticlesCanvas == null)
             {
-                // Создаем новые частицы только если играет музыка
-                CreateParticle();
-                
-                // Обновляем положение существующих частиц
-                UpdateParticles();
+                Debug.WriteLine("ParticlesCanvas не найден");
+                return;
             }
-        };
-        
-        _particleTimer.Start();
-    }
+    
+            // Выводим размеры Canvas для отладки
+            Debug.WriteLine($"ParticlesCanvas: Width={ParticlesCanvas.ActualWidth}, Height={ParticlesCanvas.ActualHeight}");
+    
+            // Если размеры нулевые, подписываемся на событие загрузки
+            if (ParticlesCanvas.ActualWidth <= 0 || ParticlesCanvas.ActualHeight <= 0)
+            {
+                ParticlesCanvas.Loaded += (s, e) =>
+                {
+                    Debug.WriteLine($"ParticlesCanvas загружен: Width={ParticlesCanvas.ActualWidth}, Height={ParticlesCanvas.ActualHeight}");
+                };
+            }
+    
+            _particleTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(200) // Увеличиваем интервал
+            };
+    
+            _particleTimer.Tick += (s, e) =>
+            {
+                if (IsPlaying)
+                {
+                    try
+                    {
+                        // Создаем новые частицы только если играет музыка
+                        CreateParticle();
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Ошибка в системе частиц: {ex.Message}");
+                    }
+                }
+            };
+    
+            _particleTimer.Start();
+            Debug.WriteLine("Система частиц инициализирована");
+        }
 
-    private void CreateParticle()
+        private void InitializePlayingIndicatorAnimation()
+        {
+            if (Bar1 == null || Bar2 == null || Bar3 == null) return;
+    
+            // Анимация для первой полоски
+            var animation1 = new DoubleAnimation
+            {
+                From = 3,
+                To = 12,
+                Duration = TimeSpan.FromSeconds(0.5),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+    
+            // Анимация для второй полоски
+            var animation2 = new DoubleAnimation
+            {
+                From = 12,
+                To = 4,
+                Duration = TimeSpan.FromSeconds(0.65),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+    
+            // Анимация для третьей полоски
+            var animation3 = new DoubleAnimation
+            {
+                From = 6,
+                To = 10,
+                Duration = TimeSpan.FromSeconds(0.55),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever
+            };
+    
+            // Запускаем анимации
+            Bar1.BeginAnimation(Rectangle.HeightProperty, animation1);
+            Bar2.BeginAnimation(Rectangle.HeightProperty, animation2);
+            Bar3.BeginAnimation(Rectangle.HeightProperty, animation3);
+        }
+
+        private void CreateParticle()
+{
+    if (_particles.Count >= MaxParticles || ParticlesCanvas == null) return;
+
+    // Создаем частицу с градиентной заливкой
+    var particle = new Ellipse
     {
-        if (_particles.Count >= MaxParticles) return;
+        Width = _random.Next(3, 7),  // Уменьшаем размер
+        Height = _random.Next(3, 7),
+        RenderTransformOrigin = new Point(0.5, 0.5)
+    };
+
+    // Создаем градиентную заливку для более мягкого вида
+    var gradientBrush = new RadialGradientBrush();
+    var spotifyGreen = Color.FromRgb(29, 185, 84); // Spotify Green
+    gradientBrush.GradientStops.Add(new GradientStop(Color.FromArgb(180, spotifyGreen.R, spotifyGreen.G, spotifyGreen.B), 0));
+    gradientBrush.GradientStops.Add(new GradientStop(Color.FromArgb(0, spotifyGreen.R, spotifyGreen.G, spotifyGreen.B), 1));
+    particle.Fill = gradientBrush;
+    
+    // Добавляем начальную прозрачность
+    particle.Opacity = _random.NextDouble() * 0.3 + 0.5; // 0.5-0.8
+
+    // Позиционирование с более случайным начальным положением
+    double left = _random.Next(50, Math.Max(51, (int)ParticlesCanvas.ActualWidth - 50));
+    double top = ParticlesCanvas.ActualHeight + _random.Next(0, 20);
+    Canvas.SetLeft(particle, left);
+    Canvas.SetTop(particle, top);
+
+    // Добавляем трансформацию для эффектов
+    var transformGroup = new TransformGroup();
+    
+    // Добавляем вращение
+    var rotateTransform = new RotateTransform(_random.Next(0, 360));
+    transformGroup.Children.Add(rotateTransform);
+    
+    // Добавляем масштабирование
+    var scaleTransform = new ScaleTransform(1, 1);
+    transformGroup.Children.Add(scaleTransform);
+    
+    particle.RenderTransform = transformGroup;
+
+    // Добавляем частицу
+    ParticlesCanvas.Children.Add(particle);
+    _particles.Add(particle);
+
+    // Создаем анимацию движения вверх с разной скоростью
+    var verticalAnim = new DoubleAnimation
+    {
+        From = top,
+        To = -20,
+        Duration = TimeSpan.FromSeconds(_random.Next(10, 20) + _random.NextDouble()), // Более разнообразное время
+        EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+    };
+
+    // Создаем более плавное горизонтальное движение
+    var horizontalAnim = new DoubleAnimation
+    {
+        From = left,
+        To = left + _random.Next(-60, 60), // Меньшая амплитуда
+        Duration = TimeSpan.FromSeconds(_random.Next(3, 8) + _random.NextDouble()),
+        AutoReverse = true,
+        RepeatBehavior = RepeatBehavior.Forever,
+        EasingFunction = new SineEase() // Синусоидальное движение для плавности
+    };
+
+    // Анимация прозрачности для плавного исчезновения
+    var opacityAnim = new DoubleAnimation
+    {
+        From = particle.Opacity,
+        To = 0,
+        Duration = TimeSpan.FromSeconds(_random.Next(8, 15) + _random.NextDouble()),
+        EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseIn }
+    };
+
+    // Анимация вращения для более интересного эффекта
+    var rotateAnim = new DoubleAnimation
+    {
+        From = 0,
+        To = _random.Next(-360, 360), // Случайное вращение
+        Duration = TimeSpan.FromSeconds(_random.Next(10, 20)),
+        EasingFunction = new SineEase()
+    };
+    
+    // Анимация масштабирования
+    var scaleAnim = new DoubleAnimation
+    {
+        From = 1,
+        To = _random.NextDouble() * 0.5 + 0.5, // 0.5-1.0
+        Duration = TimeSpan.FromSeconds(_random.Next(5, 10)),
+        AutoReverse = true,
+        RepeatBehavior = RepeatBehavior.Forever
+    };
+
+    // Удаляем частицу после завершения анимации
+    verticalAnim.Completed += (s, e) => RemoveParticle(particle);
+    
+    // Запускаем анимации
+    particle.BeginAnimation(Canvas.TopProperty, verticalAnim);
+    particle.BeginAnimation(Canvas.LeftProperty, horizontalAnim);
+    particle.BeginAnimation(UIElement.OpacityProperty, opacityAnim);
+    rotateTransform.BeginAnimation(RotateTransform.AngleProperty, rotateAnim);
+    scaleTransform.BeginAnimation(ScaleTransform.ScaleXProperty, scaleAnim);
+    scaleTransform.BeginAnimation(ScaleTransform.ScaleYProperty, scaleAnim);
+}
         
-        // Создаем новую частицу
-        var particle = new Ellipse
+        private void RemoveParticle(Ellipse particle)
         {
-            Style = (Style)FindResource("MusicParticle"),
-            Width = _random.Next(3, 7),
-            Height = _random.Next(3, 7)
-        };
-        
-        // Устанавливаем начальное положение частицы
-        double left = _random.Next(0, (int)ParticlesCanvas.ActualWidth);
-        Canvas.SetLeft(particle, left);
-        Canvas.SetTop(particle, ParticlesCanvas.ActualHeight);
-        
-        // Добавляем частицу на Canvas и в список
-        ParticlesCanvas.Children.Add(particle);
-        _particles.Add(particle);
-        
-        // Создаем анимацию движения
-        var animation = new DoubleAnimation
-        {
-            From = ParticlesCanvas.ActualHeight,
-            To = -20,
-            Duration = TimeSpan.FromSeconds(_random.Next(5, 15)),
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-        };
-        
-        // Добавляем случайное колебание по горизонтали
-        var horizontalAnimation = new DoubleAnimation
-        {
-            From = left,
-            To = left + _random.Next(-50, 50),
-            Duration = TimeSpan.FromSeconds(_random.Next(3, 8)),
-            AutoReverse = true,
-            RepeatBehavior = RepeatBehavior.Forever,
-            EasingFunction = new SineEase()
-        };
-        
-        // Добавляем пульсацию размера
-        var pulseAnimation = new DoubleAnimation
-        {
-            From = particle.Width,
-            To = particle.Width * 1.5,
-            Duration = TimeSpan.FromSeconds(0.5),
-            AutoReverse = true,
-            RepeatBehavior = RepeatBehavior.Forever
-        };
-        
-        // Запускаем анимации
-        particle.BeginAnimation(Canvas.TopProperty, animation);
-        particle.BeginAnimation(Canvas.LeftProperty, horizontalAnimation);
-        particle.BeginAnimation(WidthProperty, pulseAnimation);
-        particle.BeginAnimation(HeightProperty, pulseAnimation);
-        
-        // Удаляем частицу после завершения анимации
-        animation.Completed += (s, e) =>
-        {
-            if (ParticlesCanvas.Children.Contains(particle))
+            Dispatcher.Invoke(() => 
             {
                 ParticlesCanvas.Children.Remove(particle);
                 _particles.Remove(particle);
-            }
-        };
-    }
+            });
+        }
 
-    private void UpdateParticles()
+private void UpdateParticles()
+{
+    // Обновляем цвет частиц в зависимости от текущего трека
+    if (CurrentSong != null && _particles.Count > 0)
     {
-        // Обновляем цвет частиц в зависимости от текущего трека
-        if (CurrentSong != null)
+        try
         {
+            // Можно добавить логику изменения цвета частиц
+            // в зависимости от текущего трека или громкости
             foreach (var particle in _particles)
             {
-                // Можно добавить логику изменения цвета частиц
-                // в зависимости от текущего трека или громкости
+                // Пример: меняем прозрачность в зависимости от громкости
+                particle.Opacity = 0.3 + (Volume * 0.7);
             }
         }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Ошибка при обновлении частиц: {ex.Message}");
+        }
     }
+}
         
         private async void LoadPlaylist()
         {
@@ -389,38 +638,70 @@ namespace MyMp3Player
         }
 
         private void AddTracks()
+{
+    var openFileDialog = new OpenFileDialog
+    {
+        Multiselect = true,
+        Filter = "Audio Files|*.mp3;*.wav;*.wma;*.aac"
+    };
+
+    if (openFileDialog.ShowDialog() == true)
+    {
+        foreach (var fileName in openFileDialog.FileNames)
         {
-            var startIndex = Playlist.Count;
-            var openFileDialog = new OpenFileDialog
+            var tagFile = TagLib.File.Create(fileName);
+            string fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+            
+            // Определяем название и исполнителя из имени файла, если они разделены тире
+            string title = tagFile.Tag.Title;
+            string artist = tagFile.Tag.FirstPerformer;
+            
+            // Если метаданные отсутствуют, пытаемся извлечь из имени файла
+            if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(artist))
             {
-                Multiselect = true,
-                Filter = "Audio Files|*.mp3;*.wav;*.wma;*.aac"
-            };
-
-            if (openFileDialog.ShowDialog() == true)
-            {
-                foreach (var fileName in openFileDialog.FileNames)
+                // Проверяем, содержит ли имя файла разделитель " - "
+                if (fileNameWithoutExt.Contains(" - "))
                 {
-                    var tagFile = TagLib.File.Create(fileName);
-                    var song = new SongItem
+                    string[] parts = fileNameWithoutExt.Split(new[] { " - " }, StringSplitOptions.None);
+                    
+                    // Если разделение успешно и есть две части
+                    if (parts.Length >= 2)
                     {
-                        Title = tagFile.Tag.Title ?? Path.GetFileNameWithoutExtension(fileName),
-                        Artist = tagFile.Tag.FirstPerformer ?? "Unknown Artist",
-                        Duration = tagFile.Properties.Duration.ToString(@"mm\:ss"),
-                        FilePath = fileName
-                    };
-
-                    Playlist.Add(song);
+                        // Используем первую часть как исполнителя, если метаданные отсутствуют
+                        if (string.IsNullOrEmpty(artist))
+                        {
+                            artist = parts[0].Trim();
+                        }
+                        
+                        // Используем вторую часть как название, если метаданные отсутствуют
+                        if (string.IsNullOrEmpty(title))
+                        {
+                            title = parts[1].Trim();
+                        }
+                    }
                 }
             }
-            // Обновляем индексы после добавления
-            for (int i = 0; i < Playlist.Count; i++)
+            
+            // Если после всех попыток данные все еще отсутствуют, используем значения по умолчанию
+            title = title ?? fileNameWithoutExt;
+            artist = artist ?? "Unknown Artist";
+            
+            var song = new SongItem
             {
-                Playlist[i].Index = i + 1; // Индексация с 1
-            }
-            UpdateSongIndexes();
-            SavePlaylist(); // Автосохранение после добавления
+                Title = title,
+                Artist = artist,
+                Duration = tagFile.Properties.Duration.ToString(@"mm\:ss"),
+                FilePath = fileName
+            };
+
+            Playlist.Add(song);
         }
+    }
+    
+    // Обновляем индексы после добавления
+    UpdateSongIndexes();
+    SavePlaylist(); // Автосохранение после добавления
+}
         
         private bool _isPlaying;
         public bool IsPlaying
@@ -482,14 +763,50 @@ namespace MyMp3Player
 
         private void NextTrack()
         {
-            if (Playlist.Count == 0) return;
-    
-            var newIndex = Playlist.IndexOf(CurrentSong) + 1;
-            if (newIndex >= Playlist.Count) newIndex = 0;
-    
+            if (Playlist.Count == 0 || CurrentSong == null) return;
+
+            int currentIndex = Playlist.IndexOf(CurrentSong);
+            if (currentIndex == -1) currentIndex = 0;
+
+            int newIndex;
+            if (IsShuffleEnabled)
+            {
+                // Случайный трек, отличный от текущего
+                if (Playlist.Count > 1)
+                {
+                    do
+                    {
+                        newIndex = _random.Next(0, Playlist.Count);
+                    } while (newIndex == currentIndex);
+                }
+                else
+                {
+                    newIndex = 0;
+                }
+            }
+            else
+            {
+                // Следующий трек
+                newIndex = currentIndex + 1;
+        
+                // Если достигли конца плейлиста
+                if (newIndex >= Playlist.Count)
+                {
+                    // Если включен повтор, переходим к началу
+                    if (IsRepeatEnabled)
+                        newIndex = 0;
+                    else
+                        return; // Иначе останавливаемся
+                }
+            }
+
             CurrentSong = Playlist[newIndex];
             PlaylistView.SelectedIndex = newIndex;
+    
+            // Отладочная информация
+            Debug.WriteLine($"NextTrack: Shuffle={IsShuffleEnabled}, Repeat={IsRepeatEnabled}, NewIndex={newIndex}");
         }
+        
 
         private void PreviousTrack()
         {
@@ -508,6 +825,10 @@ namespace MyMp3Player
             {
                 song.IsPlaying = song == currentSong;
             }
+    
+            // Обновляем информацию о текущем треке
+            OnPropertyChanged(nameof(CurrentSongTitle));
+            OnPropertyChanged(nameof(CurrentArtist));
         }
 
         private void UpdateProgress()

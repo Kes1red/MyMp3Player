@@ -22,29 +22,6 @@ namespace MyMp3Player.Converters
             throw new NotSupportedException();
         }
     }
-    public class VolumeToIconConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            if (value is double volume)
-            {
-                if (volume <= 0)
-                    return "VolumeMuteIcon";
-                if (volume < 0.3)
-                    return "VolumeLowIcon";
-                if (volume < 0.7)
-                    return "VolumeMediumIcon";
-                return "VolumeHighIcon";
-            }
-            return "VolumeHighIcon";
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            throw new NotImplementedException();
-        }
-    }
-    
 
     public class SliderValueToPositionConverter : IValueConverter
     {

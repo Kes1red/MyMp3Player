@@ -10,40 +10,68 @@ namespace MyMp3Player.Converters
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value == null || parameter == null) return false;
-        
-            if (!double.TryParse(value.ToString(), NumberStyles.Any, CultureInfo.InvariantCulture, out double doubleValue))
+            if (value == null || parameter == null)
                 return false;
 
-            string[] parameters = parameter.ToString().Split(' ');
-            string operation = parameters[0].ToLower();
-
-            try 
+            // Обработка числовых операций
+            if (value is double doubleValue && parameter is string paramString)
             {
-                switch(operation)
+                // Проверка на операции сравнения
+                if (paramString.StartsWith("LessThan:"))
                 {
-                    case "lessthan":
-                        return doubleValue < double.Parse(parameters[1], CultureInfo.InvariantCulture);
-                    case "greaterthan":
-                        return doubleValue > double.Parse(parameters[1], CultureInfo.InvariantCulture);
-                    case "between":
-                        return doubleValue >= double.Parse(parameters[1], CultureInfo.InvariantCulture) && 
-                               doubleValue <= double.Parse(parameters[2], CultureInfo.InvariantCulture);
-                    case "equals":
-                        return Math.Abs(doubleValue - double.Parse(parameters[1], CultureInfo.InvariantCulture)) < 0.001;
-                    default:
-                        return false;
+                    double compareValue = double.Parse(paramString.Substring(9), CultureInfo.InvariantCulture);
+                    return doubleValue < compareValue;
+                }
+                else if (paramString.StartsWith("LessThanOrEqual:"))
+                {
+                    double compareValue = double.Parse(paramString.Substring(16), CultureInfo.InvariantCulture);
+                    return doubleValue <= compareValue;
+                }
+                else if (paramString.StartsWith("GreaterThan:"))
+                {
+                    double compareValue = double.Parse(paramString.Substring(12), CultureInfo.InvariantCulture);
+                    return doubleValue > compareValue;
+                }
+                else if (paramString.StartsWith("GreaterThanOrEqual:"))
+                {
+                    double compareValue = double.Parse(paramString.Substring(19), CultureInfo.InvariantCulture);
+                    return doubleValue >= compareValue;
+                }
+                else if (paramString.StartsWith("Between:"))
+                {
+                    string[] values = paramString.Substring(8).Split(':');
+                    if (values.Length == 2)
+                    {
+                        double min = double.Parse(values[0], CultureInfo.InvariantCulture);
+                        double max = double.Parse(values[1], CultureInfo.InvariantCulture);
+                        return doubleValue > min && doubleValue <= max;
+                    }
+                }
+                else if (double.TryParse(paramString, out double multiplier))
+                {
+                    // Умножение для преобразования значения слайдера в ширину
+                    return doubleValue * multiplier;
                 }
             }
-            catch
-            {
-                return false;
-            }
+
+            return value;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
             throw new NotImplementedException();
+        }
+    }
+    public class BooleanToVisibilityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return (bool)value ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return (Visibility)value == Visibility.Visible;
         }
     }
     
@@ -81,6 +109,53 @@ namespace MyMp3Player.Converters
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
             throw new NotSupportedException();
+        }
+    }
+    
+    public class VolumeToIconConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is double volume)
+            {
+                // Получаем экземпляр MainWindow для доступа к IsMuted
+                var mainWindow = Application.Current.MainWindow as MainWindow;
+                bool isMuted = mainWindow?.IsMuted ?? false;
+                
+                // Определяем ключ ресурса в зависимости от состояния
+                string resourceKey;
+                
+                if (isMuted || volume <= 0)
+                {
+                    resourceKey = "VolumeMuteIcon";
+                }
+                else if (volume < 0.3)
+                {
+                    resourceKey = "VolumeLowIcon";
+                }
+                else if (volume < 0.7)
+                {
+                    resourceKey = "VolumeMediumIcon";
+                }
+                else
+                {
+                    resourceKey = "VolumeHighIcon";
+                }
+                
+                // Получаем ресурс по ключу
+                if (Application.Current.Resources.Contains(resourceKey))
+                {
+                    return Application.Current.Resources[resourceKey];
+                }
+            }
+            
+            // Возвращаем запасной вариант, если ресурс не найден
+            return Application.Current.Resources["VolumeMuteIcon"];
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
         }
     }
 }

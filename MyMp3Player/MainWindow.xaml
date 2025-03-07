@@ -7,7 +7,7 @@
         Title="My MP3 Player" 
         Height="600" 
         Width="1000"
-        FontFamily="Segoe UI"
+
 >
     
     <Window.Resources>
@@ -19,17 +19,20 @@
         <converters:DurationConverter x:Key="DurationConverter"/>
         <converters:ProgressConverter x:Key="ProgressConverter"/>
         <converters:MathConverter x:Key="MathConverter"/>
-        <converters:VolumeToIconConverter x:Key="VolumeToIconConverter"/>
+        <converters:VolumeToIconConverter x:Key="VolumeConverter"/>
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         
         <SolidColorBrush x:Key="ThumbBorder" Color="#666666"/>
         <SolidColorBrush x:Key="ThumbFill" Color="#444444"/>
         <SolidColorBrush x:Key="ProgressBrush" Color="#4D4DFF"/>
         <SolidColorBrush x:Key="ThumbColor" Color="#FFFFFF"/>
         
-        <!-- для частичек -->
+        <!-- Стиль для музыкальных частиц -->
         <Style x:Key="MusicParticle" TargetType="Ellipse">
             <Setter Property="Width" Value="4"/>
             <Setter Property="Height" Value="4"/>
+            <Setter Property="Opacity" Value="0.7"/>
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
             <Setter Property="Fill">
                 <Setter.Value>
                     <RadialGradientBrush>
@@ -38,20 +41,6 @@
                     </RadialGradientBrush>
                 </Setter.Value>
             </Setter>
-            <Setter Property="Opacity" Value="0.7"/>
-            <Style.Triggers>
-                <EventTrigger RoutedEvent="Ellipse.Loaded">
-                    <BeginStoryboard>
-                        <Storyboard>
-                            <DoubleAnimation 
-                                Storyboard.TargetProperty="Opacity"
-                                From="0.7" To="0" 
-                                Duration="0:0:3" 
-                                RepeatBehavior="Forever"/>
-                        </Storyboard>
-                    </BeginStoryboard>
-                </EventTrigger>
-            </Style.Triggers>
         </Style>
         
         <!-- Градиентный фон для окна -->
@@ -65,6 +54,16 @@
             <GradientStop Color="#1DB954" Offset="0"/>
             <GradientStop Color="#1ED760" Offset="1"/>
         </LinearGradientBrush>
+        
+        <!-- Стиль для кнопок с индикацией активного состояния -->
+        <Style x:Key="ToggleControlButton" TargetType="Button" BasedOn="{StaticResource ControlButton}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" Value="True">
+                    <Setter Property="Background" Value="#1DB954"/>
+                    <Setter Property="BorderBrush" Value="#1DB954"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         
         <!-- Новый стиль для элементов списка с современным дизайном -->
 <Style TargetType="{x:Type ListViewItem}" x:Key="ModernPlaylistItemStyle">
@@ -110,51 +109,21 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            
-                            <Rectangle x:Name="Bar1" Grid.Column="0" Fill="#1DB954" Width="3" Height="8" Margin="1,0" VerticalAlignment="Bottom">
-                                <Rectangle.Triggers>
-                                    <EventTrigger RoutedEvent="Rectangle.Loaded">
-                                        <BeginStoryboard>
-                                            <Storyboard RepeatBehavior="Forever">
-                                                <DoubleAnimation Storyboard.TargetName="Bar1" 
-                                                                 Storyboard.TargetProperty="Height"
-                                                                 From="3" To="12" Duration="0:0:0.5" 
-                                                                 AutoReverse="True"/>
-                                            </Storyboard>
-                                        </BeginStoryboard>
-                                    </EventTrigger>
-                                </Rectangle.Triggers>
-                            </Rectangle>
-                            
-                            <Rectangle x:Name="Bar2" Grid.Column="1" Fill="#1DB954" Width="3" Height="12" Margin="1,0" VerticalAlignment="Bottom">
-                                <Rectangle.Triggers>
-                                    <EventTrigger RoutedEvent="Rectangle.Loaded">
-                                        <BeginStoryboard>
-                                            <Storyboard RepeatBehavior="Forever">
-                                                <DoubleAnimation Storyboard.TargetName="Bar2" 
-                                                                 Storyboard.TargetProperty="Height"
-                                                                 From="12" To="4" Duration="0:0:0.65" 
-                                                                 AutoReverse="True"/>
-                                            </Storyboard>
-                                        </BeginStoryboard>
-                                    </EventTrigger>
-                                </Rectangle.Triggers>
-                            </Rectangle>
-                            
-                            <Rectangle x:Name="Bar3" Grid.Column="2" Fill="#1DB954" Width="3" Height="6" Margin="1,0" VerticalAlignment="Bottom">
-                                <Rectangle.Triggers>
-                                    <EventTrigger RoutedEvent="Rectangle.Loaded">
-                                        <BeginStoryboard>
-                                            <Storyboard RepeatBehavior="Forever">
-                                                <DoubleAnimation Storyboard.TargetName="Bar3" 
-                                                                 Storyboard.TargetProperty="Height"
-                                                                 From="6" To="10" Duration="0:0:0.55" 
-                                                                 AutoReverse="True"/>
-                                            </Storyboard>
-                                        </BeginStoryboard>
-                                    </EventTrigger>
-                                </Rectangle.Triggers>
-                            </Rectangle>
+    
+                            <!-- Определяем стили для полосок с анимацией -->
+                            <Grid.Resources>
+                                <Style x:Key="AnimatedBarStyle" TargetType="Rectangle">
+                                    <Setter Property="Fill" Value="#1DB954"/>
+                                    <Setter Property="Width" Value="3"/>
+                                    <Setter Property="Margin" Value="1,0"/>
+                                    <Setter Property="VerticalAlignment" Value="Bottom"/>
+                                </Style>
+                            </Grid.Resources>
+    
+                            <!-- Используем стили и запускаем анимацию через код -->
+                            <Rectangle x:Name="Bar1" Grid.Column="0" Style="{StaticResource AnimatedBarStyle}" Height="8"/>
+                            <Rectangle x:Name="Bar2" Grid.Column="1" Style="{StaticResource AnimatedBarStyle}" Height="12"/>
+                            <Rectangle x:Name="Bar3" Grid.Column="2" Style="{StaticResource AnimatedBarStyle}" Height="6"/>
                         </Grid>
                         
                         <!-- Контент -->
@@ -670,6 +639,8 @@
                           BlurRadius="10" 
                           ShadowDepth="0" 
                           Opacity="0.7"/>
+        
+        
     </Window.Resources>
     
     <!-- Основной градиентный фон -->
@@ -681,9 +652,7 @@
     </Window.Background>
 
     <Grid>
-        <Canvas x:Name="ParticlesCanvas" Grid.RowSpan="3" Panel.ZIndex="-1">
-            <!-- Частицы будут добавляться программно -->
-        </Canvas>
+        
         
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -802,43 +771,70 @@
         </Grid.ColumnDefinitions>
 
         <!-- Информация о текущем треке с обложкой -->
-        <Grid Grid.Column="0" Margin="20,0,0,0">
+<Grid Grid.Column="0" Margin="20,0,0,0">
+    <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+    
+    <!-- Обложка альбома -->
+    <Border Grid.Column="0" 
+            Width="60" 
+            Height="60" 
+            Background="#2A2A35" 
+            CornerRadius="10"
+            VerticalAlignment="Center">
+        <TextBlock Text="🎵" 
+                   FontSize="24" 
+                   HorizontalAlignment="Center" 
+                   VerticalAlignment="Center"/>
+    </Border>
+    
+    <!-- Название и исполнитель -->
+    <Grid Grid.Column="1" Margin="15,0,0,0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        
+        <!-- ДОБАВИТЬ ЗДЕСЬ: Индикатор воспроизведения -->
+        <Grid x:Name="PlayingIndicator"
+              Grid.Column="0"
+              HorizontalAlignment="Left"
+              VerticalAlignment="Center"
+              Margin="0,0,5,0"
+              Width="16" Height="16"
+              Visibility="{Binding IsPlaying, Converter={StaticResource BooleanToVisibilityConverter}}">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
             
-            <!-- Обложка альбома -->
-            <Border Grid.Column="0" 
-                    Width="60" 
-                    Height="60" 
-                    Background="#2A2A35" 
-                    CornerRadius="10"
-                    VerticalAlignment="Center">
-                <TextBlock Text="🎵" 
-                           FontSize="24" 
-                           HorizontalAlignment="Center" 
-                           VerticalAlignment="Center"/>
-            </Border>
-            
-            <!-- Название и исполнитель -->
-            <StackPanel Grid.Column="1" 
-                        VerticalAlignment="Center" 
-                        Margin="15,0,0,0">
-                <TextBlock x:Name="CurrentSongTitle"
-                           Text="{Binding CurrentSongTitle}"
-                           Foreground="White"
-                           FontSize="16"
-                           FontWeight="SemiBold"
-                           TextTrimming="CharacterEllipsis"/>
-                <TextBlock x:Name="CurrentArtist"
-                           Text="{Binding CurrentArtist}"
-                           Foreground="#A0A0A0"
-                           FontSize="14"
-                           TextTrimming="CharacterEllipsis"
-                           Margin="0,4,0,0"/>
-            </StackPanel>
+            <!-- Полоски для анимации -->
+            <Rectangle x:Name="Bar1" Grid.Column="0" Fill="#1DB954" Width="3" Height="8" Margin="1,0" VerticalAlignment="Bottom"/>
+            <Rectangle x:Name="Bar2" Grid.Column="1" Fill="#1DB954" Width="3" Height="12" Margin="1,0" VerticalAlignment="Bottom"/>
+            <Rectangle x:Name="Bar3" Grid.Column="2" Fill="#1DB954" Width="3" Height="6" Margin="1,0" VerticalAlignment="Bottom"/>
         </Grid>
+        
+        <!-- Информация о треке -->
+        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <TextBlock x:Name="CurrentSongTitleText"
+                       Text="{Binding CurrentSongTitle}"
+                       Foreground="White"
+                       FontSize="16"
+                       FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis"/>
+            <TextBlock x:Name="CurrentArtistText"
+                       Text="{Binding CurrentArtist}"
+                       Foreground="#A0A0A0"
+                       FontSize="14"
+                       TextTrimming="CharacterEllipsis"
+                       Margin="0,4,0,0"/>
+        </StackPanel>
+    </Grid>
+    
+</Grid>
 
         <!-- Центральная панель с элементами управления -->
         <Grid Grid.Column="1">
@@ -848,71 +844,75 @@
             </Grid.RowDefinitions>
             
             <!-- Кнопки управления воспроизведением -->
-            <StackPanel Grid.Row="0" 
+
+<StackPanel Grid.Row="0" 
             Orientation="Horizontal" 
             HorizontalAlignment="Center"
             VerticalAlignment="Center"
             Margin="0,10,0,5">
+    <!-- Кнопка повтора -->
     <Button x:Name="RepeatButton" 
             Style="{StaticResource ControlButton}"
+            Command="{Binding ToggleRepeatCommand}"
             Margin="5,0">
-        <ContentControl>
-            <Viewbox Width="18" Height="18">
-                <ContentControl Content="{StaticResource RepeatIcon}"/>
-            </Viewbox>
-        </ContentControl>
+        <Viewbox Width="18" Height="18">
+            <ContentControl Content="{StaticResource RepeatIcon}"/>
+        </Viewbox>
     </Button>
+    
+    <!-- Кнопка предыдущего трека -->
     <Button x:Name="PrevButton" 
             Command="{Binding PreviousCommand}"
             Style="{StaticResource ControlButton}" 
             Margin="5,0">
-        <ContentControl>
-            <Viewbox Width="18" Height="18">
-                <ContentControl Content="{StaticResource PreviousIcon}"/>
-            </Viewbox>
-        </ContentControl>
+        <Viewbox Width="18" Height="18">
+            <ContentControl Content="{StaticResource PreviousIcon}"/>
+        </Viewbox>
     </Button>
-                <Button x:Name="PlayButton" 
-                        Command="{Binding PlayPauseCommand}"
-                        Style="{StaticResource MainPlayerButton}"
-                        Margin="10,0">
-                    <Grid>
-                        <Viewbox Width="24" Height="24">
-                            <ContentControl>
-                                <ContentControl.Style>
-                                    <Style TargetType="ContentControl">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsPlaying}" Value="True">
-                                                <Setter Property="Content" Value="{StaticResource PauseIcon}"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding IsPlaying}" Value="False">
-                                                <Setter Property="Content" Value="{StaticResource PlayIcon}"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ContentControl.Style>
-                            </ContentControl>
-                        </Viewbox>
-                    </Grid>
-                </Button>
+    
+    <!-- Кнопка воспроизведения/паузы -->
+    <Button x:Name="PlayButton" 
+            Command="{Binding PlayPauseCommand}"
+            Style="{StaticResource MainPlayerButton}"
+            Margin="10,0">
+        <Viewbox Width="24" Height="24">
+            <ContentControl>
+                <ContentControl.Style>
+                    <Style TargetType="ContentControl">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsPlaying}" Value="True">
+                                <Setter Property="Content" Value="{StaticResource PauseIcon}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsPlaying}" Value="False">
+                                <Setter Property="Content" Value="{StaticResource PlayIcon}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </ContentControl.Style>
+            </ContentControl>
+        </Viewbox>
+    </Button>
+    
+    <!-- Кнопка следующего трека -->
     <Button x:Name="NextButton" 
             Command="{Binding NextCommand}"
             Style="{StaticResource ControlButton}"
             Margin="5,0">
-        <ContentControl>
-            <Viewbox Width="18" Height="18">
-                <ContentControl Content="{StaticResource NextIcon}"/>
-            </Viewbox>
-        </ContentControl>
+        <Viewbox Width="18" Height="18">
+            <ContentControl Content="{StaticResource NextIcon}"/>
+        </Viewbox>
     </Button>
+    
+    <!-- Кнопка перемешивания -->
     <Button x:Name="ShuffleButton" 
             Style="{StaticResource ControlButton}"
-            Margin="5,0">
-        <ContentControl>
-            <Viewbox Width="18" Height="18">
-                <ContentControl Content="{StaticResource ShuffleIcon}"/>
-            </Viewbox>
-        </ContentControl>
+            Margin="5,0"
+            Command="{Binding ToggleShuffleCommand}"
+            >
+        
+        <Viewbox Width="18" Height="18">
+            <ContentControl Content="{StaticResource ShuffleIcon}"/>
+        </Viewbox>
     </Button>
 </StackPanel>
 
@@ -964,56 +964,48 @@
         Command="{Binding ToggleMuteCommand}"
         Style="{StaticResource ControlButton}"
         Margin="5,0">
-    <ContentControl>
-        <Viewbox Width="18" Height="18">
-            <ContentControl>
-                <ContentControl.Style>
-                    <Style TargetType="ContentControl">
-                        <Setter Property="Content" Value="{StaticResource VolumeHighIcon}"/>
-                        <Style.Triggers>
-                            <!-- Приоритет 1: Muted состояние -->
-                            <DataTrigger Binding="{Binding IsMuted}" Value="True">
-                                <Setter Property="Content" Value="{StaticResource VolumeMuteIcon}"/>
-                            </DataTrigger>
-                            
-                            <!-- Приоритет 2: Уровни громкости -->
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding IsMuted}" Value="False"/>
-                                    <Condition Binding="{Binding Volume, Converter={StaticResource MathConverter}, ConverterParameter='LessThan 0.01'}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Content" Value="{StaticResource VolumeMuteIcon}"/>
-                            </MultiDataTrigger>
-                            
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding IsMuted}" Value="False"/>
-                                    <Condition Binding="{Binding Volume, Converter={StaticResource MathConverter}, ConverterParameter='Between 0.01 0.3'}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Content" Value="{StaticResource VolumeLowIcon}"/>
-                            </MultiDataTrigger>
-                            
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding IsMuted}" Value="False"/>
-                                    <Condition Binding="{Binding Volume, Converter={StaticResource MathConverter}, ConverterParameter='Between 0.3 0.7'}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Content" Value="{StaticResource VolumeMediumIcon}"/>
-                            </MultiDataTrigger>
-                            
-                            <MultiDataTrigger>
-                                <MultiDataTrigger.Conditions>
-                                    <Condition Binding="{Binding IsMuted}" Value="False"/>
-                                    <Condition Binding="{Binding Volume, Converter={StaticResource MathConverter}, ConverterParameter='GreaterThan 0.7'}" Value="True"/>
-                                </MultiDataTrigger.Conditions>
-                                <Setter Property="Content" Value="{StaticResource VolumeHighIcon}"/>
-                            </MultiDataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ContentControl.Style>
-            </ContentControl>
-        </Viewbox>
-    </ContentControl>
+    <Viewbox Width="20" Height="20">
+        <ContentControl>
+            <ContentControl.Style>
+                <Style TargetType="ContentControl">
+                    <Setter Property="Content" Value="{StaticResource VolumeMuteIcon}"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsMuted}" Value="True">
+                            <Setter Property="Content" Value="{StaticResource VolumeMuteIcon}"/>
+                        </DataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsMuted}" Value="False"/>
+                                <Condition Binding="{Binding Volume}" Value="0"/>
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Content" Value="{StaticResource VolumeMuteIcon}"/>
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsMuted}" Value="False"/>
+                                <Condition Binding="{Binding Volume, Converter={StaticResource MathConverter}, ConverterParameter='Between:0:0.3'}" Value="True"/>
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Content" Value="{StaticResource VolumeLowIcon}"/>
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsMuted}" Value="False"/>
+                                <Condition Binding="{Binding Volume, Converter={StaticResource MathConverter}, ConverterParameter='Between:0.3:0.7'}" Value="True"/>
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Content" Value="{StaticResource VolumeMediumIcon}"/>
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding IsMuted}" Value="False"/>
+                                <Condition Binding="{Binding Volume, Converter={StaticResource MathConverter}, ConverterParameter='GreaterThanOrEqual:0.7'}" Value="True"/>
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Content" Value="{StaticResource VolumeHighIcon}"/>
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ContentControl.Style>
+        </ContentControl>
+    </Viewbox>
 </Button>
 
             <Slider x:Name="VolumeSlider" 
@@ -1027,5 +1019,12 @@
         </StackPanel>
     </Grid>
 </Border>
+        <!-- Исправленный Canvas для частиц -->
+        <Canvas x:Name="ParticlesCanvas" 
+                Grid.Row="0" 
+                Grid.RowSpan="3" 
+                Panel.ZIndex="0"
+                Background="Transparent"
+                IsHitTestVisible="False"/>
     </Grid>
 </Window>
