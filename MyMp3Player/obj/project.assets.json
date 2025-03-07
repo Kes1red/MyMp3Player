@@ -453,20 +453,20 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\user\\.nuget\\packages\\": {}
+    "C:\\Users\\purpl\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\user\\RiderProjects\\MyMp3Player\\MyMp3Player\\MyMp3Player.csproj",
+      "projectUniqueName": "C:\\Users\\purpl\\RiderProjects\\MyMp3Player\\MyMp3Player\\MyMp3Player.csproj",
       "projectName": "MyMp3Player",
-      "projectPath": "C:\\Users\\user\\RiderProjects\\MyMp3Player\\MyMp3Player\\MyMp3Player.csproj",
-      "packagesPath": "C:\\Users\\user\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\user\\RiderProjects\\MyMp3Player\\MyMp3Player\\obj\\",
+      "projectPath": "C:\\Users\\purpl\\RiderProjects\\MyMp3Player\\MyMp3Player\\MyMp3Player.csproj",
+      "packagesPath": "C:\\Users\\purpl\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\purpl\\RiderProjects\\MyMp3Player\\MyMp3Player\\obj\\",
       "projectStyle": "PackageReference",
       "UsingMicrosoftNETSdk": false,
       "configFilePaths": [
-        "C:\\Users\\user\\AppData\\Roaming\\NuGet\\NuGet.Config",
+        "C:\\Users\\purpl\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
       "originalTargetFrameworks": [

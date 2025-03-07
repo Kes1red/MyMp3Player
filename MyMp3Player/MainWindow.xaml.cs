@@ -21,6 +21,7 @@ using MyMp3Player.Data;
 using Path = System.IO.Path;
 
 
+
 namespace MyMp3Player
 {
     public partial class MainWindow : Window, INotifyPropertyChanged
@@ -33,6 +34,7 @@ namespace MyMp3Player
         public string CurrentSongTitle => CurrentSong?.Title ?? "Нет трека";
         public string CurrentArtist => CurrentSong?.Artist ?? "Неизвестный исполнитель";
         
+        string dbPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "playlist.db");
         
         //для системы частиц
         private Random _random = new Random();
@@ -347,6 +349,8 @@ namespace MyMp3Player
             // MinimizeButton.Click += (s, e) => WindowState = WindowState.Minimized;
             // MaximizeButton.Click += (s, e) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
             // CloseButton.Click += (s, e) => Close();
+            
+            Console.WriteLine(dbPath);
             
             LoadPlaylist();
         
