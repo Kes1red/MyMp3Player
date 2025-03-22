@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Media;
 
 namespace MyMp3Player.Converters
 {
@@ -111,7 +112,46 @@ namespace MyMp3Player.Converters
             throw new NotSupportedException();
         }
     }
+    public class BoolToShuffleIconConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is bool isActive)
+            {
+                var resourceKey = isActive ? "ShuffleActiveIcon" : "ShuffleInactiveIcon";
+                return Application.Current.Resources[resourceKey];
+            }
+            return Application.Current.Resources["ShuffleInactiveIcon"];
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
     
+    namespace MyMp3Player.Converters
+    {
+        public class BoolToBackgroundConverter : IValueConverter
+        {
+            public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+            {
+                if (value is bool isEnabled && isEnabled)
+                {
+                    // Возвращаем зеленый цвет Spotify при активном состоянии
+                    return new SolidColorBrush(Color.FromRgb(29, 185, 84)); // Зеленый цвет Spotify
+                }
+            
+                // Возвращаем прозрачный фон при неактивном состоянии
+                return new SolidColorBrush(Colors.Transparent);
+            }
+
+            public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+            {
+                throw new NotImplementedException();
+            }
+        }
+    }
     public class VolumeToIconConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)

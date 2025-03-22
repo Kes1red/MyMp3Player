@@ -15,6 +15,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
+using Microsoft.Data.Sqlite;
 using Microsoft.Win32;
 using MyMp3Player.Commands;
 using MyMp3Player.Data;
@@ -25,7 +26,14 @@ namespace MyMp3Player
 {
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
+        private List<SongItem> _shuffledPlaylist = new List<SongItem>();
+        private List<SongItem> _playedInShuffle = new List<SongItem>();
+        
+        
         private readonly PlaylistDatabase _playlistDb = new PlaylistDatabase();
+        
+        //поле для хранения путей
+        private HashSet<string> _existingFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         
         private readonly MediaPlayer _mediaPlayer = new MediaPlayer();
         private readonly DispatcherTimer _progressTimer = new DispatcherTimer();
@@ -174,16 +182,28 @@ namespace MyMp3Player
         }
 
         private bool _isShuffleEnabled;
+        //public string ShuffleIcon => IsShuffleEnabled ? "🔀" : "➡";
         public bool IsShuffleEnabled
         {
             get => _isShuffleEnabled;
             set
             {
-                _isShuffleEnabled = value;
-                OnPropertyChanged();
+                if (_isShuffleEnabled != value)
+                {
+                    _isShuffleEnabled = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsShuffleEnabled));
+            
+                    if (value)
+                    {
+                        // Инициализируем перемешанный плейлист
+                        _shuffledPlaylist = Playlist.OrderBy(x => _random.Next()).ToList();
+                        _playedInShuffle.Clear();
+                    }
+                }
             }
         }
-        
+
         
         
         
@@ -289,9 +309,7 @@ namespace MyMp3Player
             {
                 _mediaPlayer.Open(new Uri(song.FilePath));
                 _mediaPlayer.Play();
-        
-                // Отладочный вывод
-                Debug.WriteLine($"Воспроизведение: {song.Title} - {song.Artist}");
+                IsPlaying = true;
         
                 // Ждем инициализации длительности
                 Dispatcher.BeginInvoke(new Action(() => 
@@ -614,19 +632,49 @@ private void UpdateParticles()
     }
 }
         
-        private async void LoadPlaylist()
+private async void LoadPlaylist()
+{
+    try
+    {
+        var savedPlaylist = await _playlistDb.LoadPlaylistAsync();
+        Playlist.Clear();
+        _existingFiles.Clear();
+        
+        foreach (var song in savedPlaylist)
         {
-            var savedPlaylist = await _playlistDb.LoadPlaylistAsync();
-            foreach (var song in savedPlaylist)
+            if (!_existingFiles.Contains(song.FilePath))
             {
                 Playlist.Add(song);
+                _existingFiles.Add(song.FilePath);
             }
-            UpdateSongIndexes();
         }
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show($"Ошибка загрузки: {ex.Message}");
+    }
+}
 
         private void SavePlaylist()
         {
-            _playlistDb.SavePlaylist(Playlist.ToList());
+            try
+            {
+                _playlistDb.SavePlaylist(Playlist.ToList());
+            }
+            catch (SqliteException ex) when (ex.SqliteErrorCode == 19)
+            {
+                MessageBox.Show("Ошибка сохранения: трек уже добавлен.", 
+                    "Ошибка базы данных", 
+                    MessageBoxButton.OK, 
+                    MessageBoxImage.Error);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Критическая ошибка: {ex.Message}", 
+                    "Ошибка", 
+                    MessageBoxButton.OK, 
+                    MessageBoxImage.Error);
+            }
         }
 
         private void UpdateSongIndexes()
@@ -649,43 +697,69 @@ private void UpdateParticles()
     {
         foreach (var fileName in openFileDialog.FileNames)
         {
-            var tagFile = TagLib.File.Create(fileName);
-            string fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
-            
-            // Определяем название и исполнителя из имени файла, если они разделены тире
-            string title = tagFile.Tag.Title;
-            string artist = tagFile.Tag.FirstPerformer;
-            
-            // Если метаданные отсутствуют, пытаемся извлечь из имени файла
-            if (string.IsNullOrEmpty(title) || string.IsNullOrEmpty(artist))
+            try
             {
-                // Проверяем, содержит ли имя файла разделитель " - "
-                if (fileNameWithoutExt.Contains(" - "))
+                // Проверка на дубликат
+                if (_existingFiles.Contains(fileName))
                 {
-                    string[] parts = fileNameWithoutExt.Split(new[] { " - " }, StringSplitOptions.None);
-                    
-                    // Если разделение успешно и есть две части
-                    if (parts.Length >= 2)
-                    {
-                        // Используем первую часть как исполнителя, если метаданные отсутствуют
-                        if (string.IsNullOrEmpty(artist))
-                        {
-                            artist = parts[0].Trim();
-                        }
-                        
-                        // Используем вторую часть как название, если метаданные отсутствуют
-                        if (string.IsNullOrEmpty(title))
-                        {
-                            title = parts[1].Trim();
-                        }
-                    }
+                    MessageBox.Show($"Трек уже в плейлисте:\n{fileName}", 
+                                  "Дубликат", 
+                                   MessageBoxButton.OK, 
+                                   MessageBoxImage.Warning);
+                    continue;
                 }
+
+                var tagFile = TagLib.File.Create(fileName);
+                string fileNameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                
+                // Парсим метаданные с проверкой на whitespace
+                string title = !string.IsNullOrWhiteSpace(tagFile.Tag.Title) 
+                    ? tagFile.Tag.Title.Trim() 
+                    : null;
+                    
+                string artist = !string.IsNullOrWhiteSpace(tagFile.Tag.FirstPerformer) 
+                    ? tagFile.Tag.FirstPerformer.Trim() 
+                    : null;
+
+                // Если оба поля заполнены - используем метаданные
+                if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(artist))
+                {
+                    CreateSongItem(title, artist, fileName, tagFile);
+                    _existingFiles.Add(fileName);
+                    continue;
+                }
+
+                // Парсим из имени файла
+                var parsedData = ParseFileName(fileNameWithoutExt);
+                title = parsedData.title ?? title;
+                artist = parsedData.artist ?? artist;
+
+                // Создаем объект трека с защитой от null
+                CreateSongItem(
+                    title ?? fileNameWithoutExt,
+                    artist ?? "Неизвестный исполнитель",
+                    fileName,
+                    tagFile
+                );
+                
+                _existingFiles.Add(fileName);
             }
-            
-            // Если после всех попыток данные все еще отсутствуют, используем значения по умолчанию
-            title = title ?? fileNameWithoutExt;
-            artist = artist ?? "Unknown Artist";
-            
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Ошибка обработки файла {fileName}: {ex.Message}",
+                              "Ошибка",
+                              MessageBoxButton.OK,
+                              MessageBoxImage.Error);
+            }
+        }
+    }
+    
+    UpdateSongIndexes();
+    SavePlaylist();
+}
+        
+        private void CreateSongItem(string title, string artist, string fileName, TagLib.File tagFile)
+        {
             var song = new SongItem
             {
                 Title = title,
@@ -694,14 +768,41 @@ private void UpdateParticles()
                 FilePath = fileName
             };
 
+            // Диагностический вывод
+            Debug.WriteLine($"Added track: [Artist: {song.Artist}] [Title: {song.Title}]" +
+                            $"[From tags: {tagFile.Tag.Title}|{tagFile.Tag.FirstPerformer}]" +
+                            $"[File: {fileName}]");
+
             Playlist.Add(song);
         }
-    }
+
+private (string artist, string title) ParseFileName(string fileName)
+{
+    // Убираем все виды кавычек и лишние пробелы
+    fileName = fileName.Replace("\"", "").Replace("'", "").Trim();
     
-    // Обновляем индексы после добавления
-    UpdateSongIndexes();
-    SavePlaylist(); // Автосохранение после добавления
+    // Пробуем разные разделители
+    string[] separators = { " - ", "-", " – ", " — " };
+    foreach (var separator in separators)
+    {
+        int separatorIndex = fileName.IndexOf(separator, StringComparison.Ordinal);
+        if (separatorIndex > 0)
+        {
+            string artistPart = fileName.Substring(0, separatorIndex).Trim();
+            string titlePart = fileName.Substring(separatorIndex + separator.Length).Trim();
+
+            // Проверяем что обе части не пустые
+            if (!string.IsNullOrWhiteSpace(artistPart) && !string.IsNullOrWhiteSpace(titlePart))
+            {
+                return (artistPart, titlePart);
+            }
+        }
+    }
+
+    // Если разделитель не найден или части пустые
+    return (null, null);
 }
+
         
         private bool _isPlaying;
         public bool IsPlaying
@@ -765,47 +866,51 @@ private void UpdateParticles()
         {
             if (Playlist.Count == 0 || CurrentSong == null) return;
 
-            int currentIndex = Playlist.IndexOf(CurrentSong);
-            if (currentIndex == -1) currentIndex = 0;
-
-            int newIndex;
             if (IsShuffleEnabled)
             {
-                // Случайный трек, отличный от текущего
-                if (Playlist.Count > 1)
-                {
-                    do
-                    {
-                        newIndex = _random.Next(0, Playlist.Count);
-                    } while (newIndex == currentIndex);
-                }
-                else
-                {
-                    newIndex = 0;
-                }
+                PlayNextShuffled();
             }
             else
             {
-                // Следующий трек
-                newIndex = currentIndex + 1;
+                PlayNextNormal();
+            }
+    
+            UpdatePlaybackStates(CurrentSong);
+        }
         
-                // Если достигли конца плейлиста
-                if (newIndex >= Playlist.Count)
-                {
-                    // Если включен повтор, переходим к началу
-                    if (IsRepeatEnabled)
-                        newIndex = 0;
-                    else
-                        return; // Иначе останавливаемся
-                }
+        private void PlayNextNormal()
+        {
+            int currentIndex = Playlist.IndexOf(CurrentSong);
+            int newIndex = currentIndex + 1;
+
+            if (newIndex >= Playlist.Count)
+            {
+                if (IsRepeatEnabled) newIndex = 0;
+                else return;
             }
 
             CurrentSong = Playlist[newIndex];
             PlaylistView.SelectedIndex = newIndex;
-    
-            // Отладочная информация
-            Debug.WriteLine($"NextTrack: Shuffle={IsShuffleEnabled}, Repeat={IsRepeatEnabled}, NewIndex={newIndex}");
         }
+
+        private void PlayNextShuffled()
+        {
+            // Удаляем текущий трек из непроигранных
+            _shuffledPlaylist.Remove(CurrentSong);
+            _playedInShuffle.Add(CurrentSong);
+
+            // Если все треки проиграны - перемешиваем заново
+            if (_shuffledPlaylist.Count == 0)
+            {
+                _shuffledPlaylist = _playedInShuffle.OrderBy(x => _random.Next()).ToList();
+                _playedInShuffle.Clear();
+            }
+
+            // Выбираем следующий трек
+            CurrentSong = _shuffledPlaylist.First();
+            PlaylistView.SelectedIndex = Playlist.IndexOf(CurrentSong);
+        }
+
         
 
         private void PreviousTrack()

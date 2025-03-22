@@ -4,6 +4,7 @@
         xmlns:converters="clr-namespace:MyMp3Player.Converters"
         xmlns:local="clr-namespace:MyMp3Player"
         xmlns:System="clr-namespace:System;assembly=System.Runtime"
+        xmlns:converters1="clr-namespace:MyMp3Player.Converters.MyMp3Player.Converters"
         Title="My MP3 Player" 
         Height="600" 
         Width="1000"
@@ -21,6 +22,7 @@
         <converters:MathConverter x:Key="MathConverter"/>
         <converters:VolumeToIconConverter x:Key="VolumeConverter"/>
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters1:BoolToBackgroundConverter x:Key="BoolToBackgroundConverter"/>
         
         <SolidColorBrush x:Key="ThumbBorder" Color="#666666"/>
         <SolidColorBrush x:Key="ThumbFill" Color="#444444"/>
@@ -55,15 +57,7 @@
             <GradientStop Color="#1ED760" Offset="1"/>
         </LinearGradientBrush>
         
-        <!-- Стиль для кнопок с индикацией активного состояния -->
-        <Style x:Key="ToggleControlButton" TargetType="Button" BasedOn="{StaticResource ControlButton}">
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding RelativeSource={RelativeSource Self}, Path=Tag}" Value="True">
-                    <Setter Property="Background" Value="#1DB954"/>
-                    <Setter Property="BorderBrush" Value="#1DB954"/>
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
+        
         
         <!-- Новый стиль для элементов списка с современным дизайном -->
 <Style TargetType="{x:Type ListViewItem}" x:Key="ModernPlaylistItemStyle">
@@ -444,7 +438,7 @@
         <Setter.Value>
             <ControlTemplate TargetType="Button">
                 <Border x:Name="ButtonBorder" 
-                        Background="#2A2A36" 
+                        Background="{TemplateBinding Background}" 
                         CornerRadius="20"
                         BorderThickness="0"
                         Opacity="0.7">
@@ -478,6 +472,50 @@
         <Trigger Property="IsPressed" Value="True">
             <Setter Property="Foreground" Value="White"/>
         </Trigger>
+    </Style.Triggers>
+</Style>
+        
+        <!-- Стиль для кнопок с индикацией активного состояния -->
+        <Style x:Key="ToggleControlButton" TargetType="Button" BasedOn="{StaticResource ControlButton}">
+    <Style.Triggers>
+        <Trigger Property="IsPressed" Value="True">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder" 
+                                Background="#1DB954" 
+                                CornerRadius="20"
+                                BorderThickness="0"
+                                Opacity="1">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center"/>
+                            <Border.Effect>
+                                <DropShadowEffect Color="#1DB954" BlurRadius="8" ShadowDepth="0" Opacity="0.5"/>
+                            </Border.Effect>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Trigger>
+        <DataTrigger Binding="{Binding IsShuffleEnabled}" Value="True">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder" 
+                                Background="#1DB954" 
+                                CornerRadius="20"
+                                BorderThickness="0"
+                                Opacity="1">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center"/>
+                            <Border.Effect>
+                                <DropShadowEffect Color="#1DB954" BlurRadius="8" ShadowDepth="0" Opacity="0.5"/>
+                            </Border.Effect>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </DataTrigger>
     </Style.Triggers>
 </Style>
 
@@ -905,11 +943,9 @@
     
     <!-- Кнопка перемешивания -->
     <Button x:Name="ShuffleButton" 
-            Style="{StaticResource ControlButton}"
+            Style="{StaticResource ToggleControlButton}"
             Margin="5,0"
-            Command="{Binding ToggleShuffleCommand}"
-            >
-        
+            Command="{Binding ToggleShuffleCommand}">
         <Viewbox Width="18" Height="18">
             <ContentControl Content="{StaticResource ShuffleIcon}"/>
         </Viewbox>

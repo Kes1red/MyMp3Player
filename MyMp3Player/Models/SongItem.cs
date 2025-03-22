@@ -4,6 +4,21 @@ using System.Runtime.CompilerServices;
 
 public class SongItem : INotifyPropertyChanged
 {
+    private int _playlistIndex;
+    
+    public int PlaylistIndex
+    {
+        get => _playlistIndex;
+        set
+        {
+            if (_playlistIndex != value)
+            {
+                _playlistIndex = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+    
     private int _index;
     private string _title;
     private string _artist;

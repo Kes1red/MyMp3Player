@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 
@@ -24,16 +26,30 @@ namespace MyMp3Player.Data
             {
                 connection.Open();
 
-                var command = connection.CreateCommand();
-                command.CommandText = @"
-                    CREATE TABLE IF NOT EXISTS Songs (
-                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        Title TEXT NOT NULL,
-                        FilePath TEXT NOT NULL UNIQUE,
-                        Duration TEXT,
-                        PlaylistIndex INTEGER NOT NULL
-                    )";
-                command.ExecuteNonQuery();
+                // Создаем таблицу без столбца Artist (если не существует)
+                var createTableCommand = connection.CreateCommand();
+                createTableCommand.CommandText = @"
+            CREATE TABLE IF NOT EXISTS Songs (
+                Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Title TEXT NOT NULL,
+                FilePath TEXT NOT NULL UNIQUE,
+                Duration TEXT,
+                PlaylistIndex INTEGER NOT NULL
+            )";
+                createTableCommand.ExecuteNonQuery();
+
+                // Проверяем наличие столбца Artist
+                var checkColumnCommand = connection.CreateCommand();
+                checkColumnCommand.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Songs') WHERE name = 'Artist';";
+                int columnExists = Convert.ToInt32(checkColumnCommand.ExecuteScalar());
+
+                if (columnExists == 0)
+                {
+                    // Добавляем столбец Artist, если он отсутствует
+                    var alterCommand = connection.CreateCommand();
+                    alterCommand.CommandText = "ALTER TABLE Songs ADD COLUMN Artist TEXT NOT NULL DEFAULT '';";
+                    alterCommand.ExecuteNonQuery();
+                }
             }
         }
         
@@ -41,36 +57,68 @@ namespace MyMp3Player.Data
 
         // Синхронный метод для сохранения плейлиста (ObservableCollection)
         public void SavePlaylist(IEnumerable<SongItem> playlist)
+    {
+        var items = playlist.ToList(); // Материализуем коллекцию
+        using (var connection = new SqliteConnection($"Data Source={_dbPath}"))
         {
-            using (var connection = new SqliteConnection($"Data Source={_dbPath}"))
-            {
-                connection.Open();
-                var transaction = connection.BeginTransaction();
+            connection.Open();
             
+            using (var transaction = connection.BeginTransaction())
+            {
                 try
                 {
-                    // Очистка старого плейлиста
-                    var clearCommand = connection.CreateCommand();
-                    clearCommand.CommandText = "DELETE FROM Songs";
-                    clearCommand.ExecuteNonQuery();
+                    // Оптимизированный запрос для удаления
+                    var deleteCommand = connection.CreateCommand();
+                    deleteCommand.CommandText = @"
+                        DELETE FROM Songs 
+                        WHERE FilePath NOT IN (SELECT value FROM json_each($paths))";
+                    
+                    deleteCommand.Parameters.AddWithValue("$paths", JsonSerializer.Serialize(items.Select(s => s.FilePath)));
+                    deleteCommand.ExecuteNonQuery();
 
-                    // Вставка новых записей
-                    var insertCommand = connection.CreateCommand();
-                    insertCommand.CommandText = @"INSERT INTO Songs 
-                    (Title, FilePath, Duration, PlaylistIndex) 
-                    VALUES ($title, $path, $duration, $index)";
+                    // Пакетный UPSERT
+                    var upsertCommand = connection.CreateCommand();
+                    upsertCommand.CommandText = @"
+                        INSERT OR REPLACE INTO Songs 
+                        (Id, Title, Artist, FilePath, Duration, PlaylistIndex) 
+                        VALUES (
+                            COALESCE(
+                                (SELECT Id FROM Songs WHERE FilePath = $path), 
+                                NULL
+                            ),
+                            $title,
+                            $artist,
+                            $path,
+                            $duration,
+                            $index)";
 
-                    int index = 1;
-                    foreach (var song in playlist)
+                    // Добавляем параметры
+                    var parameters = new[]
                     {
-                        insertCommand.Parameters.Clear();
-                        insertCommand.Parameters.AddWithValue("$title", song.Title);
-                        insertCommand.Parameters.AddWithValue("$path", song.FilePath);
-                        insertCommand.Parameters.AddWithValue("$duration", song.Duration);
-                        insertCommand.Parameters.AddWithValue("$index", index++);
-                        insertCommand.ExecuteNonQuery();
+                        ("$title", SqliteType.Text),
+                        ("$artist", SqliteType.Text),
+                        ("$path", SqliteType.Text),
+                        ("$duration", SqliteType.Text),
+                        ("$index", SqliteType.Integer)
+                    };
+
+                    foreach (var (name, type) in parameters)
+                    {
+                        upsertCommand.Parameters.Add(name, type);
                     }
-                
+
+                    // Выполняем пакетную вставку
+                    foreach (var song in items)
+                    {
+                        upsertCommand.Parameters["$title"].Value = song.Title ?? "";
+                        upsertCommand.Parameters["$artist"].Value = song.Artist ?? "";
+                        upsertCommand.Parameters["$path"].Value = song.FilePath;
+                        upsertCommand.Parameters["$duration"].Value = song.Duration;
+                        upsertCommand.Parameters["$index"].Value = items.IndexOf(song);
+                        
+                        upsertCommand.ExecuteNonQuery();
+                    }
+
                     transaction.Commit();
                 }
                 catch
@@ -80,6 +128,7 @@ namespace MyMp3Player.Data
                 }
             }
         }
+    }
 
         // Перегрузка метода для работы с List<SongItem>
         public void SavePlaylist(List<SongItem> playlist)
@@ -157,7 +206,7 @@ namespace MyMp3Player.Data
                 connection.Open();
 
                 var command = connection.CreateCommand();
-                command.CommandText = "SELECT Title, FilePath, Duration, PlaylistIndex FROM Songs ORDER BY PlaylistIndex";
+                command.CommandText = "SELECT Title, Artist, FilePath, Duration, PlaylistIndex FROM Songs ORDER BY PlaylistIndex";
 
                 using (var reader = command.ExecuteReader())
                 {
@@ -166,9 +215,10 @@ namespace MyMp3Player.Data
                         var song = new SongItem
                         {
                             Title = reader.GetString(0),
-                            FilePath = reader.GetString(1),
-                            Duration = reader.GetString(2),
-                            Index = reader.GetInt32(3)
+                            Artist = reader.GetString(1),
+                            FilePath = reader.GetString(2),
+                            Duration = reader.GetString(3),
+                            PlaylistIndex = reader.GetInt32(4)
                         };
 
                         result.Add(song);
@@ -187,8 +237,11 @@ namespace MyMp3Player.Data
             {
                 await connection.OpenAsync();
                 var command = connection.CreateCommand();
-                command.CommandText = "SELECT Title, FilePath, Duration, PlaylistIndex FROM Songs ORDER BY PlaylistIndex";
-            
+                command.CommandText = @"
+            SELECT Title, Artist, FilePath, Duration, PlaylistIndex 
+            FROM Songs 
+            ORDER BY PlaylistIndex";
+        
                 using (var reader = await command.ExecuteReaderAsync())
                 {
                     while (await reader.ReadAsync())
@@ -196,9 +249,10 @@ namespace MyMp3Player.Data
                         playlist.Add(new SongItem
                         {
                             Title = reader.GetString(0),
-                            FilePath = reader.GetString(1),
-                            Duration = reader.GetString(2),
-                            Index = reader.GetInt32(3)
+                            Artist = reader.GetString(1),
+                            FilePath = reader.GetString(2),
+                            Duration = reader.GetString(3),
+                            PlaylistIndex = reader.GetInt32(4)
                         });
                     }
                 }
