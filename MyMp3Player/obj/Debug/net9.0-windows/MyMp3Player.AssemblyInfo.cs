@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("MyMp3Player")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1f64d9f03dca0b05f269118b5b697b8ae45e9a9c")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f01c11df0f9eff81a34a19710896b86d593922f6")]
 [assembly: System.Reflection.AssemblyProductAttribute("MyMp3Player")]
 [assembly: System.Reflection.AssemblyTitleAttribute("MyMp3Player")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

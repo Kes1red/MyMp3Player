@@ -92,26 +92,26 @@ namespace MyMp3Player.Converters
             throw new NotImplementedException();
         }
     }
-    
+
     public class ProgressConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (value is double currentValue && 
-                Application.Current.MainWindow.FindName("ProgressSlider") is Slider slider &&
-                slider.ActualWidth > 0 &&
-                slider.Maximum > 0)
+            if (value is double currentValue && currentValue > 0)
             {
+                var slider = Application.Current.MainWindow.FindName("ProgressSlider") as Slider;
                 return (currentValue / slider.Maximum) * slider.ActualWidth;
             }
+
             return 0;
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            throw new NotSupportedException();
+            throw new NotImplementedException();
         }
     }
+
     public class BoolToShuffleIconConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -130,8 +130,68 @@ namespace MyMp3Player.Converters
         }
     }
     
-    namespace MyMp3Player.Converters
+    public class BoolToOpacityConverter : IValueConverter
     {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return (bool)value ? 1.0 : 0.0;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    public class RepeatIconConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is RepeatMode mode)
+            {
+                return mode switch
+                {
+                    RepeatMode.RepeatAll => Application.Current.FindResource("RepeatAllIcon"),
+                    RepeatMode.RepeatOne => Application.Current.FindResource("RepeatOneIcon"),
+                    _ => Application.Current.FindResource("RepeatIcon")
+                };
+            }
+            return DependencyProperty.UnsetValue;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+    
+    public class RepeatModeToOpacityConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return (RepeatMode)value != RepeatMode.NoRepeat ? 1.0 : 0.0;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+    
+    public class EnumToBoolConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return value?.ToString() == parameter?.ToString();
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return (bool)value ? Enum.Parse(targetType, parameter.ToString()) : null;
+        }
+    }
+    
+
         public class BoolToBackgroundConverter : IValueConverter
         {
             public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -151,7 +211,7 @@ namespace MyMp3Player.Converters
                 throw new NotImplementedException();
             }
         }
-    }
+    
     public class VolumeToIconConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)

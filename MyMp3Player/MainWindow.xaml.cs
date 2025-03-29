@@ -13,6 +13,7 @@ using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using Microsoft.Data.Sqlite;
@@ -25,6 +26,12 @@ using Path = System.IO.Path;
 
 namespace MyMp3Player
 {
+    public enum RepeatMode
+    {
+        NoRepeat,
+        RepeatAll,
+        RepeatOne
+    }
     public partial class MainWindow : Window, INotifyPropertyChanged
     {
         private List<SongItem> _shuffledPlaylist = new List<SongItem>();
@@ -83,6 +90,56 @@ namespace MyMp3Player
             };
         }
         
+        
+        
+        private bool TryPlayNextTrack()
+        {
+            if (IsShuffleEnabled)
+                return TryPlayShuffled();
+            else
+                return TryPlaySequential();
+        }
+
+        private bool TryPlayShuffled()
+        {
+            if (_shuffledPlaylist.Count == 0) return false;
+
+            // Логика перемешивания
+            var nextTrack = _shuffledPlaylist
+                .Where(t => t != CurrentSong)
+                .OrderBy(_ => _random.Next())
+                .FirstOrDefault();
+
+            if (nextTrack != null)
+            {
+                CurrentSong = nextTrack;
+                return true;
+            }
+            return false;
+        }
+
+        private bool TryPlaySequential()
+        {
+            if (Playlist.Count == 0 || CurrentSong == null) 
+                return false;
+
+            int currentIndex = Playlist.IndexOf(CurrentSong);
+            int nextIndex = currentIndex + 1;
+
+            if (nextIndex >= Playlist.Count)
+            {
+                if (CurrentRepeatMode == RepeatMode.RepeatAll)
+                {
+                    CurrentSong = Playlist[0];
+                    return true;
+                }
+                return false;
+            }
+
+            CurrentSong = Playlist[nextIndex];
+            return true;
+        }
+        
         public double TotalDuration {
             get => _mediaPlayer.NaturalDuration.HasTimeSpan 
                 ? _mediaPlayer.NaturalDuration.TimeSpan.TotalSeconds 
@@ -95,12 +152,17 @@ namespace MyMp3Player
             get => _mediaPlayer.Position.TotalSeconds;
             set
             {
-                if (!_isDragging && Math.Abs(_mediaPlayer.Position.TotalSeconds - value) > 0.1)
+                if (Math.Abs(_mediaPlayer.Position.TotalSeconds - value) > 0.1)
                 {
                     _mediaPlayer.Position = TimeSpan.FromSeconds(value);
                     OnPropertyChanged();
                 }
             }
+        }
+        
+        private void ProgressSlider_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            _isDragging = true;
         }
 
         public ObservableCollection<SongItem> Playlist { get; } = new ObservableCollection<SongItem>();
@@ -126,13 +188,19 @@ namespace MyMp3Player
             // Уведомляем UI об изменениях
             OnPropertyChanged(nameof(IsMuted));
         });
+        
+        
 
         public ICommand AddTrackCommand => new RelayCommand(AddTracks);
         public ICommand PlayPauseCommand => new RelayCommand(PlayPause);
-        public ICommand NextCommand => new RelayCommand(NextTrack, () => CanNavigate());
+        public ICommand NextCommand => new RelayCommand(() => 
+        {
+            if (TryPlayNextTrack())
+                _mediaPlayer.Play();
+        });
         public ICommand PreviousCommand => new RelayCommand(PreviousTrack, () => CanNavigate());
         
-        private bool CanNavigate()
+        private bool CanNavigate() 
         {
             return Playlist.Count > 0 && CurrentSong != null;
         }
@@ -150,6 +218,120 @@ namespace MyMp3Player
         {
             IsShuffleEnabled = !IsShuffleEnabled;
         });
+        
+        private RepeatMode _currentRepeatMode = RepeatMode.NoRepeat;
+        public RepeatMode CurrentRepeatMode
+        {
+            get => _currentRepeatMode;
+            set
+            {
+                _currentRepeatMode = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public ICommand CycleRepeatCommand => new RelayCommand(() =>
+        {
+            CurrentRepeatMode = CurrentRepeatMode switch
+            {
+                RepeatMode.NoRepeat => RepeatMode.RepeatAll,
+                RepeatMode.RepeatAll => RepeatMode.RepeatOne,
+                _ => RepeatMode.NoRepeat
+            };
+        });
+        
+        public ICommand DeleteTrackCommand => new RelayCommand(() => 
+        {
+            // Получаем выбранный трек из ListView
+            var selectedTrack = PlaylistView.SelectedItem as SongItem;
+            if (selectedTrack != null)
+            {
+                DeleteTrack(selectedTrack);
+            }
+        });
+
+        private void DeleteTrack(SongItem song)
+        {
+            if (song != null)
+            {
+                // Если удаляем текущий трек, останавливаем воспроизведение
+                if (song == CurrentSong)
+                {
+                    StopPlayback();
+                }
+        
+                // Удаляем трек из плейлиста
+                Playlist.Remove(song);
+                _existingFiles.Remove(song.FilePath);
+        
+                // Сохраняем изменения в базе данных
+                SavePlaylist();
+        
+                // Обновляем UI
+                OnPropertyChanged(nameof(Playlist));
+            }
+        }
+        
+        private void MenuButton_Click(object sender, RoutedEventArgs e)
+        {
+            Button button = (Button)sender;
+            if (button.ContextMenu != null)
+            {
+                button.ContextMenu.DataContext = button.DataContext;
+                button.ContextMenu.IsOpen = true;
+                e.Handled = true;
+            }
+        }
+        
+        private void DeleteMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+
+    
+            // Получаем MenuItem, который был нажат
+            MenuItem menuItem = sender as MenuItem;
+            if (menuItem == null) 
+            {
+                return;
+            }
+    
+            // Получаем ContextMenu, которому принадлежит MenuItem
+            ContextMenu contextMenu = menuItem.Parent as ContextMenu;
+            if (contextMenu == null) 
+            {
+                return;
+            }
+    
+            // Получаем DataContext из контекстного меню
+            SongItem song = contextMenu.DataContext as SongItem;
+    
+            // Если не удалось получить SongItem из DataContext контекстного меню,
+            // попробуем получить выбранный элемент из ListView
+            if (song == null && PlaylistView.SelectedItem is SongItem selectedSong)
+            {
+                song = selectedSong;
+            }
+    
+            if (song != null)
+            {
+                DeleteTrack(song);
+            }
+            else
+            {
+                MessageBox.Show("Не удалось определить трек для удаления");
+            }
+        }
+        
+        private void UpdateRepeatButtonStyle()
+        {
+            var accentBrush = (LinearGradientBrush)FindResource("AccentGradient");
+            RepeatButton.Background = CurrentRepeatMode != RepeatMode.NoRepeat 
+                ? accentBrush 
+                : Brushes.Transparent;
+    
+            RepeatButton.Effect = CurrentRepeatMode != RepeatMode.NoRepeat 
+                ? (Effect)FindResource("GlowEffect") 
+                : null;
+        }
         
         
         private void ToggleMute()
@@ -211,17 +393,19 @@ namespace MyMp3Player
         
         private bool _isDragging;
         private TimeSpan _savedPosition;
+
         private void ProgressSlider_DragStarted(object sender, DragStartedEventArgs e)
         {
             _isDragging = true;
-            _progressTimer.Stop(); // Останавливаем автообновление
+            _savedPosition = _mediaPlayer.Position;
+            _progressTimer.Stop();
         }
 
         private void ProgressSlider_DragCompleted(object sender, DragCompletedEventArgs e)
         {
             _isDragging = false;
             _mediaPlayer.Position = TimeSpan.FromSeconds(ProgressSlider.Value);
-            _progressTimer.Start(); // Возобновляем автообновление
+            _progressTimer.Start();
             UpdateProgress();
         }
         
@@ -285,8 +469,6 @@ namespace MyMp3Player
             }
         }
         
-        
-        // В классе MainWindow
         private SongItem _currentSong;
         public SongItem CurrentSong
         {
@@ -295,7 +477,7 @@ namespace MyMp3Player
             {
                 _currentSong = value;
                 OnPropertyChanged(nameof(CurrentSong));
-                OnPropertyChanged(nameof(CurrentSongTitle)); // Добавьте эти строки
+                OnPropertyChanged(nameof(CurrentSongTitle)); 
                 OnPropertyChanged(nameof(CurrentArtist));    // для обновления UI
                 if (value != null) 
                 {
@@ -328,6 +510,8 @@ namespace MyMp3Player
                 MessageBox.Show($"Ошибка воспроизведения: {ex.Message}");
             }
         }
+        
+        
         
         
 
@@ -364,36 +548,42 @@ namespace MyMp3Player
             InitializeParticleSystem();
             InitializePlayingIndicatorAnimation ();
             DataContext = this;
-            // MinimizeButton.Click += (s, e) => WindowState = WindowState.Minimized;
-            // MaximizeButton.Click += (s, e) => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-            // CloseButton.Click += (s, e) => Close();
-            
-            Console.WriteLine(dbPath);
+
+
             
             LoadPlaylist();
         
             Closing += (s, e) => SavePlaylist();
 
-            //AddTrackCommand = new RelayCommand(AddTracks);
-            //PlayPauseCommand = new RelayCommand(PlayPause);
-            //NextCommand = new RelayCommand(NextTrack);
-            //PreviousCommand = new RelayCommand(PreviousTrack);
 
             _mediaPlayer.MediaOpened += (s, e) => OnPropertyChanged(nameof(TotalTime));
             _mediaPlayer.MediaEnded += (s, e) => 
             {
-                if (IsRepeatEnabled && CurrentSong != null)
+                switch (CurrentRepeatMode)
                 {
-                    // Повторяем текущий трек
-                    _mediaPlayer.Position = TimeSpan.Zero;
-                    _mediaPlayer.Play();
-                }
-                else
-                {
-                    // Переходим к следующему треку
-                    NextTrack();
+                    case RepeatMode.RepeatOne:
+                        _mediaPlayer.Position = TimeSpan.Zero;
+                        _mediaPlayer.Play();
+                        break;
+            
+                    case RepeatMode.RepeatAll:
+                        if (TryPlayNextTrack())
+                            _mediaPlayer.Play();
+                        else
+                            StopPlayback();
+                        break;
+            
+                    default:
+                        if (TryPlayNextTrack())
+                            _mediaPlayer.Play();
+                        else
+                            StopPlayback();
+                        break;
                 }
             };
+            
+           
+
             
             _mediaPlayer.MediaOpened += (s, e) => 
             {
@@ -422,9 +612,7 @@ namespace MyMp3Player
                 Debug.WriteLine("ParticlesCanvas не найден");
                 return;
             }
-    
-            // Выводим размеры Canvas для отладки
-            Debug.WriteLine($"ParticlesCanvas: Width={ParticlesCanvas.ActualWidth}, Height={ParticlesCanvas.ActualHeight}");
+
     
             // Если размеры нулевые, подписываемся на событие загрузки
             if (ParticlesCanvas.ActualWidth <= 0 || ParticlesCanvas.ActualHeight <= 0)
@@ -688,6 +876,8 @@ private async void LoadPlaylist()
                 Playlist[i].Index = i + 1;
             }
         }
+        
+        
 
         private void AddTracks()
 {
@@ -876,10 +1066,19 @@ private (string artist, string title) ParseFileName(string fileName)
             }
             else
             {
-                PlayNextNormal();
+                int currentIndex = Playlist.IndexOf(CurrentSong);
+                int newIndex = currentIndex + 1;
+        
+                if (newIndex >= Playlist.Count)
+                {
+                    if (CurrentRepeatMode != RepeatMode.RepeatAll) return;
+                    newIndex = 0;
+                }
+        
+                CurrentSong = Playlist[newIndex];
             }
     
-            UpdatePlaybackStates(CurrentSong);
+            _mediaPlayer.Play();
         }
         
         private void PlayNextNormal()
@@ -897,22 +1096,28 @@ private (string artist, string title) ParseFileName(string fileName)
             PlaylistView.SelectedIndex = newIndex;
         }
 
-        private void PlayNextShuffled()
+        private bool PlayNextShuffled()
         {
-            // Удаляем текущий трек из непроигранных
-            _shuffledPlaylist.Remove(CurrentSong);
-            _playedInShuffle.Add(CurrentSong);
+            if (_shuffledPlaylist.Count == 0) return false;
 
-            // Если все треки проиграны - перемешиваем заново
+            _playedInShuffle.Add(CurrentSong);
+            _shuffledPlaylist.Remove(CurrentSong);
+
             if (_shuffledPlaylist.Count == 0)
             {
                 _shuffledPlaylist = _playedInShuffle.OrderBy(x => _random.Next()).ToList();
                 _playedInShuffle.Clear();
             }
 
-            // Выбираем следующий трек
             CurrentSong = _shuffledPlaylist.First();
-            PlaylistView.SelectedIndex = Playlist.IndexOf(CurrentSong);
+            return true;
+        }
+        
+        private void StopPlayback()
+        {
+            _mediaPlayer.Stop();
+            IsPlaying = false;
+            CurrentSong = null;
         }
 
         
@@ -948,6 +1153,7 @@ private (string artist, string title) ParseFileName(string fileName)
                 OnPropertyChanged(nameof(CurrentTime));
             }
         }
+
         public event PropertyChangedEventHandler PropertyChanged;
         protected virtual void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {

@@ -4,7 +4,7 @@
         xmlns:converters="clr-namespace:MyMp3Player.Converters"
         xmlns:local="clr-namespace:MyMp3Player"
         xmlns:System="clr-namespace:System;assembly=System.Runtime"
-        xmlns:converters1="clr-namespace:MyMp3Player.Converters.MyMp3Player.Converters"
+
         Title="My MP3 Player" 
         Height="600" 
         Width="1000"
@@ -12,7 +12,13 @@
 >
     
     <Window.Resources>
-        
+        <!-- Кисти для элементов списка -->
+        <SolidColorBrush x:Key="ItemBackgroundBrush" Color="#252530"/>
+        <SolidColorBrush x:Key="HoverItemBackgroundBrush" Color="#2A2A38"/>
+        <SolidColorBrush x:Key="SelectedItemBackgroundBrush" Color="#1DB954"/>
+        <SolidColorBrush x:Key="HoverButtonBackground" Color="#3A3A46"/>
+        <SolidColorBrush x:Key="PressedButtonBackground" Color="#1DB954"/>
+        <SolidColorBrush x:Key="TransparentBrush" Color="Transparent"/>
 
         <converters:SliderValueToWidthConverter x:Key="SliderWidthConverter"/>
         <converters:SliderValueToPositionConverter x:Key="SliderPositionConverter"/>
@@ -22,7 +28,9 @@
         <converters:MathConverter x:Key="MathConverter"/>
         <converters:VolumeToIconConverter x:Key="VolumeConverter"/>
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
-        <converters1:BoolToBackgroundConverter x:Key="BoolToBackgroundConverter"/>
+        <converters:BoolToOpacityConverter x:Key="BoolToOpacity"/>
+        <converters:RepeatIconConverter x:Key="RepeatIconConverter"/>
+        <converters:RepeatModeToOpacityConverter x:Key="RepeatModeToOpacity"/>
         
         <SolidColorBrush x:Key="ThumbBorder" Color="#666666"/>
         <SolidColorBrush x:Key="ThumbFill" Color="#444444"/>
@@ -57,181 +65,226 @@
             <GradientStop Color="#1ED760" Offset="1"/>
         </LinearGradientBrush>
         
-        
-        
-        <!-- Новый стиль для элементов списка с современным дизайном -->
-<Style TargetType="{x:Type ListViewItem}" x:Key="ModernPlaylistItemStyle">
-    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-    <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="Padding" Value="12,8"/>
-    <Setter Property="Margin" Value="4,2"/>
+        <Style x:Key="ModernContextMenu" TargetType="ContextMenu">
+    <Setter Property="Background" Value="#252530"/>
+    <Setter Property="BorderBrush" Value="#333344"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Padding" Value="2"/>
     <Setter Property="Template">
         <Setter.Value>
-            <ControlTemplate TargetType="ListViewItem">
-                <Border x:Name="Container" 
+            <ControlTemplate TargetType="ContextMenu">
+                <Border Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
                         CornerRadius="6"
-                        Background="Transparent"
-                        Margin="{TemplateBinding Margin}">
+                        Padding="{TemplateBinding Padding}">
+                    <ItemsPresenter/>
+                </Border>
+            </ControlTemplate>
+        </Setter.Value>
+    </Setter>
+</Style>
+
+<Style x:Key="ModernMenuItem" TargetType="MenuItem">
+    <Setter Property="Foreground" Value="White"/>
+    <Setter Property="Background" Value="Transparent"/>
+    <Setter Property="Padding" Value="10,8"/>
+    <Setter Property="Template">
+        <Setter.Value>
+            <ControlTemplate TargetType="MenuItem">
+                <Border x:Name="Border"
+                        Background="{TemplateBinding Background}"
+                        CornerRadius="4"
+                        Padding="{TemplateBinding Padding}">
                     <Grid>
-                        <!-- Фон элемента -->
-                        <Border x:Name="BackgroundLayer" 
-                                CornerRadius="6"
-                                Opacity="0.6">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                    <GradientStop Color="#252530" Offset="0"/>
-                                    <GradientStop Color="#1E1E28" Offset="1"/>
-                                </LinearGradientBrush>
-                            </Border.Background>
-                        </Border>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
                         
-                        <!-- Эффект свечения при выделении -->
-                        <Border x:Name="GlowEffect" 
-                                CornerRadius="6"
-                                Opacity="0"
-                                Background="#1DB95420"/>
+                        <ContentPresenter Grid.Column="0"
+                                          ContentSource="Icon"
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,8,0"/>
                         
-                        <!-- Индикатор воспроизведения (анимированные полоски) -->
-                        <Grid x:Name="PlayingIndicator" 
-                              HorizontalAlignment="Left" 
-                              VerticalAlignment="Center"
-                              Margin="10,0,0,0"
-                              Visibility="Collapsed"
-                              Width="16" Height="16">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-    
-                            <!-- Определяем стили для полосок с анимацией -->
-                            <Grid.Resources>
-                                <Style x:Key="AnimatedBarStyle" TargetType="Rectangle">
-                                    <Setter Property="Fill" Value="#1DB954"/>
-                                    <Setter Property="Width" Value="3"/>
-                                    <Setter Property="Margin" Value="1,0"/>
-                                    <Setter Property="VerticalAlignment" Value="Bottom"/>
-                                </Style>
-                            </Grid.Resources>
-    
-                            <!-- Используем стили и запускаем анимацию через код -->
-                            <Rectangle x:Name="Bar1" Grid.Column="0" Style="{StaticResource AnimatedBarStyle}" Height="8"/>
-                            <Rectangle x:Name="Bar2" Grid.Column="1" Style="{StaticResource AnimatedBarStyle}" Height="12"/>
-                            <Rectangle x:Name="Bar3" Grid.Column="2" Style="{StaticResource AnimatedBarStyle}" Height="6"/>
-                        </Grid>
-                        
-                        <!-- Контент -->
-                        <ContentPresenter Margin="10,0,0,0"/>
-                        
-                        <!-- Кнопки действий (появляются при наведении) -->
-                        <StackPanel x:Name="ActionButtons" 
-            Orientation="Horizontal" 
-            HorizontalAlignment="Right" 
-            VerticalAlignment="Center"
-            Margin="0,0,10,0"
-            Opacity="0">
-    <Button Foreground="White" 
-            Background="#33333333" 
-            BorderThickness="0"
-            Width="30" Height="30"
-            Margin="4,0"
-            Cursor="Hand">
-        <Button.Template>
-            <ControlTemplate TargetType="Button">
-                <Border Background="{TemplateBinding Background}" 
-                        CornerRadius="15">
-                    <Viewbox Width="16" Height="16">
-                        <Path Data="M12.1,18.55L12,18.65L11.89,18.55C7.14,14.24 4,11.39 4,8.5C4,6.5 5.5,5 7.5,5C9.04,5 10.54,6 11.07,7.36H12.93C13.46,6 14.96,5 16.5,5C18.5,5 20,6.5 20,8.5C20,11.39 16.86,14.24 12.1,18.55M16.5,3C14.76,3 13.09,3.81 12,5.08C10.91,3.81 9.24,3 7.5,3C3.42,3 0,6.42 0,10.5C0,15.5 5,20 12,22C19,20 24,15.5 24,10.5C24,6.42 20.58,3 16.5,3Z" 
-                              Fill="White" 
-                              Stretch="Uniform"/>
-                    </Viewbox>
-                </Border>
-            </ControlTemplate>
-        </Button.Template>
-    </Button>
-    <Button Foreground="White" 
-            Background="#33333333" 
-            BorderThickness="0"
-            Width="30" Height="30"
-            Margin="4,0"
-            Cursor="Hand">
-        <Button.Template>
-            <ControlTemplate TargetType="Button">
-                <Border Background="{TemplateBinding Background}" 
-                        CornerRadius="15">
-                    <Viewbox Width="16" Height="16">
-                        <Path Data="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z" 
-                              Fill="White" 
-                              Stretch="Uniform"/>
-                    </Viewbox>
-                </Border>
-            </ControlTemplate>
-        </Button.Template>
-    </Button>
-</StackPanel>
+                        <ContentPresenter Grid.Column="1"
+                                          ContentSource="Header"
+                                          VerticalAlignment="Center"/>
                     </Grid>
                 </Border>
-                
                 <ControlTemplate.Triggers>
-                    <!-- Анимация при наведении -->
                     <Trigger Property="IsMouseOver" Value="True">
-                        <Trigger.EnterActions>
-                            <BeginStoryboard>
-                                <Storyboard>
-                                    <DoubleAnimation Storyboard.TargetName="GlowEffect" 
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="0.4" 
-                                                     Duration="0:0:0.2"/>
-                                    <DoubleAnimation Storyboard.TargetName="ActionButtons" 
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="1" 
-                                                     Duration="0:0:0.2"/>
-                                    <ColorAnimation Storyboard.TargetName="BackgroundLayer" 
-                                                    Storyboard.TargetProperty="(Border.Background).(GradientBrush.GradientStops)[0].Color"
-                                                    To="#2A2A38" 
-                                                    Duration="0:0:0.2"/>
-                                </Storyboard>
-                            </BeginStoryboard>
-                        </Trigger.EnterActions>
-                        <Trigger.ExitActions>
-                            <BeginStoryboard>
-                                <Storyboard>
-                                    <DoubleAnimation Storyboard.TargetName="GlowEffect" 
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="0" 
-                                                     Duration="0:0:0.3"/>
-                                    <DoubleAnimation Storyboard.TargetName="ActionButtons" 
-                                                     Storyboard.TargetProperty="Opacity"
-                                                     To="0" 
-                                                     Duration="0:0:0.3"/>
-                                    <ColorAnimation Storyboard.TargetName="BackgroundLayer" 
-                                                    Storyboard.TargetProperty="(Border.Background).(GradientBrush.GradientStops)[0].Color"
-                                                    To="#252530" 
-                                                    Duration="0:0:0.3"/>
-                                </Storyboard>
-                            </BeginStoryboard>
-                        </Trigger.ExitActions>
+                        <Setter TargetName="Border" Property="Background" Value="#1DB95430"/>
                     </Trigger>
-
-                    <!-- Стиль для выбранного элемента -->
-                    <Trigger Property="IsSelected" Value="True">
-                        <Setter Property="Foreground" Value="White"/>
-                        <Setter TargetName="GlowEffect" Property="Opacity" Value="0.5"/>
-                        <Setter TargetName="BackgroundLayer" Property="Background">
-                            <Setter.Value>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                    <GradientStop Color="#1DB954" Offset="0"/>
-                                    <GradientStop Color="#1A9E48" Offset="1"/>
-                                </LinearGradientBrush>
-                            </Setter.Value>
-                        </Setter>
-                        <Setter TargetName="PlayingIndicator" Property="Visibility" Value="Visible"/>
+                    <Trigger Property="IsPressed" Value="True">
+                        <Setter TargetName="Border" Property="Background" Value="#1DB95460"/>
                     </Trigger>
                 </ControlTemplate.Triggers>
             </ControlTemplate>
         </Setter.Value>
     </Setter>
 </Style>
+        
+        
+        <!-- Новый стиль для элементов списка с современным дизайном -->
+        <Style TargetType="{x:Type ListViewItem}" x:Key="ModernPlaylistItemStyle">
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Margin" Value="4,2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="Container" 
+                                CornerRadius="6"
+                                Background="Transparent"
+                                Margin="{TemplateBinding Margin}">
+                            <Grid>
+                                <Border x:Name="SelectionHighlight"
+                                        CornerRadius="6"
+                                        Background="{StaticResource SelectedItemBackgroundBrush}"
+                                        Opacity="0"/>
+                                <!-- Фон элемента -->
+                                <Border x:Name="BackgroundLayer" 
+                                        CornerRadius="6"
+                                        Background="{StaticResource ItemBackgroundBrush}"
+                                        Opacity="0.6"/>
+                                
+                                <!-- Эффект свечения при выделении -->
+                                <Border x:Name="GlowEffect" 
+                                        CornerRadius="6"
+                                        Opacity="0"
+                                        Background="#1DB95420"/>
+                                
+                                <!-- Контент с учетом кнопок действий -->
+                                <Grid Margin="10,0,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="80"/> <!-- Место для кнопок действий -->
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <!-- Основной контент -->
+                                    <ContentPresenter Grid.Column="0"/>
+                                    
+                                    <!-- Кнопки действий (появляются при наведении) -->
+                                    <StackPanel x:Name="ActionButtons" 
+                                                Grid.Column="1"
+                                                Orientation="Horizontal" 
+                                                HorizontalAlignment="Right" 
+                                                VerticalAlignment="Center"
+                                                Opacity="0">
+                                        <Button Foreground="White" 
+                                                Background="#33333333" 
+                                                BorderThickness="0"
+                                                Width="30" Height="30"
+                                                Margin="4,0"
+                                                Cursor="Hand">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Grid>
+                                                        <Ellipse Fill="{TemplateBinding Background}"
+                                                                 Stroke="#444444"
+                                                                 StrokeThickness="1"/>
+                                                        <Viewbox Width="16" Height="16">
+                                                            <Path Data="M12,21.35L10.55,20.03C5.4,15.36 2,12.27 2,8.5C2,5.41 4.42,3 7.5,3C9.24,3 10.91,3.81 12,5.08C13.09,3.81 14.76,3 16.5,3C19.58,3 22,5.41 22,8.5C22,12.27 18.6,15.36 13.45,20.03L12,21.35Z" 
+                                                                  Fill="White" 
+                                                                  Stretch="Uniform"/>
+                                                        </Viewbox>
+                                                    </Grid>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                        <Button Foreground="White" 
+                                                Background="#33333333" 
+                                                BorderThickness="0"
+                                                Width="30" Height="30"
+                                                Margin="4,0"
+                                                Cursor="Hand"
+                                                x:Name="MenuButton"
+                                                Click="MenuButton_Click">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}" 
+                                                            CornerRadius="15">
+                                                        <Viewbox Width="16" Height="16">
+                                                            <Path Data="M12,16A2,2 0 0,1 14,18A2,2 0 0,1 12,20A2,2 0 0,1 10,18A2,2 0 0,1 12,16M12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12A2,2 0 0,1 12,10M12,4A2,2 0 0,1 14,6A2,2 0 0,1 12,8A2,2 0 0,1 10,6A2,2 0 0,1 12,4Z"                               
+                                                                  Fill="White" 
+                                                                  Stretch="Uniform"/>
+                                                        </Viewbox>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                            <Button.ContextMenu>
+                                                <ContextMenu Style="{StaticResource ModernContextMenu}"
+                                                             DataContext="{Binding}">
+                                                    <MenuItem Header="Удалить трек" 
+                                                              Style="{StaticResource ModernMenuItem}"
+                                                              Click="DeleteMenuItem_Click">
+                                                        <MenuItem.Icon>
+                                                            <Path Data="M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z"
+                                                                  Fill="#FF5555"
+                                                                  Width="16"
+                                                                  Height="16"
+                                                                  Stretch="Uniform"/>
+                                                        </MenuItem.Icon>
+                                                    </MenuItem>
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Grid>
+                        </Border>
+                        
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="SelectionHighlight" Property="Opacity" Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="GlowEffect" 
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.4" 
+                                                             Duration="0:0:0.2"/>
+                                            <DoubleAnimation Storyboard.TargetName="ActionButtons" 
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="1" 
+                                                             Duration="0:0:0.2"/>
+                                            <DoubleAnimation Storyboard.TargetName="BackgroundLayer" 
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.8" 
+                                                             Duration="0:0:0.2"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="GlowEffect" 
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0" 
+                                                             Duration="0:0:0.3"/>
+                                            <DoubleAnimation Storyboard.TargetName="ActionButtons" 
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0" 
+                                                             Duration="0:0:0.3"/>
+                                            <DoubleAnimation Storyboard.TargetName="BackgroundLayer" 
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.6" 
+                                                             Duration="0:0:0.3"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        
         
         <!-- Новый стиль для списка треков -->
 <Style TargetType="{x:Type ListView}" x:Key="ModernPlaylistStyle">
@@ -282,30 +335,30 @@
                                            Margin="0,0,15,0"/>
                                 
                                 <Button Grid.Column="2" 
-        Command="{Binding AddTrackCommand}"
-        Foreground="White"
-        Background="#1DB954"
-        Width="28" Height="28"
-        ToolTip="Add tracks">
-    <Button.Template>
-        <ControlTemplate TargetType="Button">
-            <Border Background="{TemplateBinding Background}" 
-                    CornerRadius="14">
-                <ContentControl>
-                    <Viewbox Width="16" Height="16">
-                        <ContentControl Content="{StaticResource AddIcon}"/>
-                    </Viewbox>
-                </ContentControl>
-            </Border>
-        </ControlTemplate>
-    </Button.Template>
-</Button>
+                                        Command="{Binding AddTrackCommand}"
+                                        Foreground="White"
+                                        Background="#1DB954"
+                                        Width="28" Height="28"
+                                        ToolTip="Add tracks">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}" 
+                                                    CornerRadius="14">
+                                                <ContentControl>
+                                                    <Viewbox Width="16" Height="16">
+                                                        <ContentControl Content="{StaticResource AddIcon}"/>
+                                                    </Viewbox>
+                                                </ContentControl>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
                             </Grid>
                         </Border>
                         
                         <!-- Список треков -->
                         <ScrollViewer Grid.Row="1" 
-                                      VerticalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Hidden"
                                       HorizontalScrollBarVisibility="Disabled">
                             <ItemsPresenter/>
                         </ScrollViewer>
@@ -360,7 +413,7 @@
                         <ColumnDefinition Width="150"/>
                         <ColumnDefinition Width="80"/>
                     </Grid.ColumnDefinitions>
-                    
+                
                     <!-- Название трека -->
                     <TextBlock Grid.Column="0" 
                                Text="{Binding Title}" 
@@ -370,7 +423,7 @@
                                VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis"
                                Margin="10,0,0,0"/>
-                    
+                
                     <!-- Исполнитель -->
                     <TextBlock Grid.Column="1" 
                                Text="{Binding Artist}" 
@@ -378,7 +431,7 @@
                                FontSize="14"
                                VerticalAlignment="Center"
                                TextTrimming="CharacterEllipsis"/>
-                    
+                
                     <!-- Длительность -->
                     <TextBlock Grid.Column="2" 
                                Text="{Binding Duration}" 
@@ -426,97 +479,170 @@
 
         <!-- Стиль для обычных кнопок управления -->
         <Style x:Key="ControlButton" TargetType="Button">
-    <Setter Property="Background" Value="Transparent"/>
-    <Setter Property="BorderThickness" Value="0"/>
-    <Setter Property="Foreground" Value="#A0A0A0"/>
-    <Setter Property="FontSize" Value="20"/>
-    <Setter Property="Padding" Value="12"/>
-    <Setter Property="Cursor" Value="Hand"/>
-    <Setter Property="Width" Value="40"/>
-    <Setter Property="Height" Value="40"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="6"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="#A0A0A0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <!-- Основной слой -->
+                            <Ellipse x:Name="BackgroundCircle"
+                                     Fill="Transparent"
+                                     Stroke="#404040"
+                                     StrokeThickness="1"/>
+                            
+                            <!-- Активный слой -->
+                            <Ellipse x:Name="ActiveLayer"
+                                     Fill="#1DB954"
+                                     Opacity="0"/>
+                            
+                            <!-- Иконка -->
+                            <ContentPresenter x:Name="Content"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Grid>
+                        
+                        <ControlTemplate.Triggers>
+                            <!-- Анимация наведения -->
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="BackgroundCircle" Property="Stroke" Value="#1DB954"/>
+                                <Setter TargetName="ActiveLayer" Property="Opacity" Value="0.2"/>
+                                <Setter TargetName="Content" Property="TextElement.Foreground" Value="White"/>
+                            </Trigger>
+                            
+                            <!-- Анимация нажатия -->
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ActiveLayer" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        
+        <!-- Стиль для кнопок с индикацией активного состояния -->
+        <Style x:Key="ToggleControlButton" TargetType="Button" BasedOn="{StaticResource ControlButton}">
+            <Style.Triggers>
+                <!-- Убраны триггеры с IsChecked -->
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#3A3A46"/>
+                </Trigger>
+                <Trigger Property="IsPressed" Value="True">
+                    <Setter Property="Background" Value="#1DB954"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        
+        <Style x:Key="ActiveButtonEffect" TargetType="Ellipse">
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#1DB954" BlurRadius="10" Opacity="0.7"/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <ScaleTransform/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <PathGeometry x:Key="RepeatIcon" Figures="M17,17H7V14L3,18L7,22V19H19V13H17V17M7,7H17V10L21,6L17,2V5H5V11H7V7"/>
+        <PathGeometry x:Key="RepeatAllIcon" Figures="M17,17H7V14L3,18L7,22V19H19V13H17V17Z M7,7H17V10L21,6L17,2V5H5V11H7V7"/>
+        <PathGeometry x:Key="RepeatOneIcon" Figures="M17,17H7V14L3,18L7,22V19H19V13H17V17Z M13,7V13H15V9H17V7H13Z"/>
+        <PathGeometry x:Key="ShuffleIcon" Figures="M14.83,13.41L13.42,14.82L16.55,17.95L14.5,20H20V14.5L17.96,16.54L14.83,13.41M14.5,4L16.54,6.04L4,18.59L5.41,20L17.96,7.46L20,9.5V4M10.59,9.17L5.41,4L4,5.41L9.17,10.58L10.59,9.17Z"/>
+        <PathGeometry x:Key="ShuffleActiveIcon" Figures="M9.17,9.17L4,4L5.41,5.41L10.58,10.58L9.17,12M14.5,4L16.54,6.04L4,18.59L5.41,20L17.96,7.46L20,9.5V4H14.5M14.83,13.41L13.42,14.82L16.55,17.95L14.5,20H20V14.5L17.96,16.54L14.83,13.41"/>
+
+        
+        <!-- Стиль для кнопки перемешивания -->
+        <Style x:Key="ShuffleButtonStyle" TargetType="Button" BasedOn="{StaticResource ControlButton}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Ellipse x:Name="BackgroundCircle"
+                                     Fill="Transparent"
+                                     Stroke="#404040"
+                                     StrokeThickness="1"/>
+                    
+                            <Ellipse x:Name="ActiveLayer"
+                                     Fill="#1DB954"
+                                     Opacity="0"/>
+                    
+                            <Path x:Name="ShuffleIcon"
+                                  Data="{StaticResource ShuffleIcon}"
+                                  Fill="{TemplateBinding Foreground}"
+                                  Stretch="Uniform"
+                                  Width="18"
+                                  Height="18"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <!-- Триггеры теперь внутри шаблона -->
+                            <DataTrigger Binding="{Binding IsShuffleEnabled}" Value="True">
+                                <Setter TargetName="ShuffleIcon" Property="Data" Value="{StaticResource ShuffleActiveIcon}"/>
+                                <Setter TargetName="ActiveLayer" Property="Opacity" Value="0.3"/>
+                                <Setter TargetName="BackgroundCircle" Property="Stroke" Value="#1DB954"/>
+                            </DataTrigger>
+                    
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ShuffleIcon" Property="Fill" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- Стиль для кнопки повтора -->
+        <Style x:Key="RepeatButtonStyle" TargetType="Button" BasedOn="{StaticResource ControlButton}">
     <Setter Property="Template">
         <Setter.Value>
             <ControlTemplate TargetType="Button">
-                <Border x:Name="ButtonBorder" 
-                        Background="{TemplateBinding Background}" 
-                        CornerRadius="20"
-                        BorderThickness="0"
-                        Opacity="0.7">
-                    <ContentPresenter HorizontalAlignment="Center" 
-                                      VerticalAlignment="Center"/>
-                    <Border.Effect>
-                        <DropShadowEffect Color="#000000" BlurRadius="5" ShadowDepth="1" Opacity="0.3"/>
-                    </Border.Effect>
-                </Border>
+                <Grid>
+                    <Ellipse x:Name="BackgroundCircle"
+                             Fill="Transparent"
+                             Stroke="#404040"
+                             StrokeThickness="1"/>
+                    
+                    <Ellipse x:Name="ActiveLayer"
+                             Fill="#1DB954"
+                             Opacity="0"/>
+                    
+                    <Viewbox Width="18" Height="18">
+                        <Path x:Name="RepeatPath"
+                              Data="{StaticResource RepeatIcon}"
+                              Fill="{TemplateBinding Foreground}"
+                              Stretch="Uniform"/>
+                    </Viewbox>
+                </Grid>
                 <ControlTemplate.Triggers>
+                    <DataTrigger Binding="{Binding CurrentRepeatMode}" Value="RepeatAll">
+                        <Setter TargetName="RepeatPath" Property="Data" Value="{StaticResource RepeatAllIcon}"/>
+                        <Setter TargetName="ActiveLayer" Property="Opacity" Value="0.3"/>
+                        <Setter TargetName="BackgroundCircle" Property="Stroke" Value="#1DB954"/>
+                    </DataTrigger>
+                    
+                    <DataTrigger Binding="{Binding CurrentRepeatMode}" Value="RepeatOne">
+                        <Setter TargetName="RepeatPath" Property="Data" Value="{StaticResource RepeatOneIcon}"/>
+                        <Setter TargetName="ActiveLayer" Property="Opacity" Value="0.3"/>
+                        <Setter TargetName="BackgroundCircle" Property="Stroke" Value="#1DB954"/>
+                    </DataTrigger>
+                    
                     <Trigger Property="IsMouseOver" Value="True">
-                        <Setter TargetName="ButtonBorder" Property="Background" Value="#3A3A46"/>
-                        <Setter TargetName="ButtonBorder" Property="Opacity" Value="1"/>
-                        <Setter TargetName="ButtonBorder" Property="Effect">
-                            <Setter.Value>
-                                <DropShadowEffect Color="#1DB954" BlurRadius="8" ShadowDepth="0" Opacity="0.5"/>
-                            </Setter.Value>
-                        </Setter>
-                    </Trigger>
-                    <Trigger Property="IsPressed" Value="True">
-                        <Setter TargetName="ButtonBorder" Property="Background" Value="#1DB954"/>
+                        <Setter TargetName="RepeatPath" Property="Fill" Value="White"/>
                     </Trigger>
                 </ControlTemplate.Triggers>
             </ControlTemplate>
         </Setter.Value>
     </Setter>
-    <Style.Triggers>
-        <Trigger Property="IsMouseOver" Value="True">
-            <Setter Property="Foreground" Value="White"/>
-        </Trigger>
-        <Trigger Property="IsPressed" Value="True">
-            <Setter Property="Foreground" Value="White"/>
-        </Trigger>
-    </Style.Triggers>
-</Style>
-        
-        <!-- Стиль для кнопок с индикацией активного состояния -->
-        <Style x:Key="ToggleControlButton" TargetType="Button" BasedOn="{StaticResource ControlButton}">
-    <Style.Triggers>
-        <Trigger Property="IsPressed" Value="True">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="ButtonBorder" 
-                                Background="#1DB954" 
-                                CornerRadius="20"
-                                BorderThickness="0"
-                                Opacity="1">
-                            <ContentPresenter HorizontalAlignment="Center" 
-                                              VerticalAlignment="Center"/>
-                            <Border.Effect>
-                                <DropShadowEffect Color="#1DB954" BlurRadius="8" ShadowDepth="0" Opacity="0.5"/>
-                            </Border.Effect>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Trigger>
-        <DataTrigger Binding="{Binding IsShuffleEnabled}" Value="True">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="ButtonBorder" 
-                                Background="#1DB954" 
-                                CornerRadius="20"
-                                BorderThickness="0"
-                                Opacity="1">
-                            <ContentPresenter HorizontalAlignment="Center" 
-                                              VerticalAlignment="Center"/>
-                            <Border.Effect>
-                                <DropShadowEffect Color="#1DB954" BlurRadius="8" ShadowDepth="0" Opacity="0.5"/>
-                            </Border.Effect>
-                        </Border>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </DataTrigger>
-    </Style.Triggers>
 </Style>
 
         <!-- Стиль для главной кнопки воспроизведения -->
@@ -576,40 +702,74 @@
         
         <!-- Стиль для слайдера прогресса -->
         <Style x:Key="ProgressSliderStyle" TargetType="Slider">
-            <Setter Property="IsMoveToPointEnabled" Value="True"/>
-            <Setter Property="IsSnapToTickEnabled" Value="False"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Slider">
-                        <Grid>
-                            <!-- Фоновая дорожка -->
-                            <Border x:Name="TrackBackground"
-                                    Height="4"
-                                    Background="#404040"
-                                    CornerRadius="2"/>
-                    
-                            <!-- Активный прогресс -->
-                            <Border x:Name="ProgressBar"
-                                    Height="4"
-                                    Background="#1DB954"
-                                    HorizontalAlignment="Left"
-                                    CornerRadius="2"
-                                    Width="{Binding Value, 
-                                    RelativeSource={RelativeSource TemplatedParent},
-                                    Converter={StaticResource ProgressConverter}}"/>
-                    
-                            <!-- Ползунок и трек -->
-                            <Track x:Name="PART_Track">
-                                <Track.Thumb>
-                                    <Thumb Style="{StaticResource SliderThumbStyle}"/>
-                                </Track.Thumb>
-                            </Track>
-                            
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+    <Setter Property="IsMoveToPointEnabled" Value="True"/>
+    <Setter Property="IsSnapToTickEnabled" Value="False"/>
+    <Setter Property="Template">
+        <Setter.Value>
+            <ControlTemplate TargetType="Slider">
+                <Grid>
+                    <!-- Фоновая дорожка -->
+                    <Border x:Name="TrackBackground"
+                            Height="4"
+                            Background="#404040"
+                            CornerRadius="2"/>
+            
+                    <!-- Активный прогресс -->
+                    <Border x:Name="ProgressBar"
+                            Height="4"
+                            Background="#1DB954"
+                            HorizontalAlignment="Left"
+                            CornerRadius="2"
+                            Width="{TemplateBinding Value, Converter={StaticResource ProgressConverter}}"/>
+            
+                    <!-- Стандартный трек с Thumb -->
+                    <Track x:Name="PART_Track" IsDirectionReversed="False">
+                        <Track.DecreaseRepeatButton>
+                            <RepeatButton Command="Slider.DecreaseLarge" 
+                                          Opacity="0"
+                                          Focusable="False"
+                                          IsHitTestVisible="False"/>
+                        </Track.DecreaseRepeatButton>
+                        <Track.IncreaseRepeatButton>
+                            <RepeatButton Command="Slider.IncreaseLarge" 
+                                          Opacity="0"
+                                          Focusable="False"
+                                          IsHitTestVisible="False"/>
+                        </Track.IncreaseRepeatButton>
+                        <Track.Thumb>
+                            <Thumb x:Name="SliderThumb" 
+                                   Width="16" 
+                                   Height="16"
+                                   Focusable="True"
+                                   IsHitTestVisible="True">
+                                <Thumb.Template>
+                                    <ControlTemplate TargetType="Thumb">
+                                        <Grid Width="16" Height="16">
+                                            <Ellipse x:Name="ThumbCircle"
+                                                     Width="12" 
+                                                     Height="12" 
+                                                     Fill="#1DB954"/>
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ThumbCircle" Property="Fill" Value="#22DD65"/>
+                                            </Trigger>
+                                            <Trigger Property="IsDragging" Value="True">
+                                                <Setter TargetName="ThumbCircle" Property="Fill" Value="#22DD65"/>
+                                                <Setter TargetName="ThumbCircle" Property="Width" Value="14"/>
+                                                <Setter TargetName="ThumbCircle" Property="Height" Value="14"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Thumb.Template>
+                            </Thumb>
+                        </Track.Thumb>
+                    </Track>
+                </Grid>
+            </ControlTemplate>
+        </Setter.Value>
+    </Setter>
+</Style>
         
         <!-- Стиль для слайдера громкости -->
         <Style x:Key="VolumeSliderStyle" TargetType="Slider">
@@ -835,7 +995,7 @@
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
         
-        <!-- ДОБАВИТЬ ЗДЕСЬ: Индикатор воспроизведения -->
+        <!-- Индикатор воспроизведения -->
         <Grid x:Name="PlayingIndicator"
               Grid.Column="0"
               HorizontalAlignment="Left"
@@ -890,9 +1050,15 @@
             Margin="0,10,0,5">
     <!-- Кнопка повтора -->
     <Button x:Name="RepeatButton" 
-            Style="{StaticResource ControlButton}"
-            Command="{Binding ToggleRepeatCommand}"
+            Style="{StaticResource RepeatButtonStyle}"
+            Command="{Binding CycleRepeatCommand}"
             Margin="5,0">
+        <Button.Resources>
+            <Style TargetType="Ellipse">
+                <Setter Property="Width" Value="30"/>
+                <Setter Property="Height" Value="30"/>
+            </Style>
+        </Button.Resources>
         <Viewbox Width="18" Height="18">
             <ContentControl Content="{StaticResource RepeatIcon}"/>
         </Viewbox>
@@ -936,20 +1102,21 @@
             Command="{Binding NextCommand}"
             Style="{StaticResource ControlButton}"
             Margin="5,0">
-        <Viewbox Width="18" Height="18">
+        <Viewbox Width="15" Height="15">
             <ContentControl Content="{StaticResource NextIcon}"/>
         </Viewbox>
     </Button>
     
     <!-- Кнопка перемешивания -->
     <Button x:Name="ShuffleButton" 
-            Style="{StaticResource ToggleControlButton}"
+            Style="{StaticResource ShuffleButtonStyle}"
             Margin="5,0"
             Command="{Binding ToggleShuffleCommand}">
         <Viewbox Width="18" Height="18">
             <ContentControl Content="{StaticResource ShuffleIcon}"/>
         </Viewbox>
     </Button>
+
 </StackPanel>
 
             <!-- Слайдер прогресса -->
@@ -978,7 +1145,8 @@
                         Value="{Binding CurrentPosition, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                         Style="{StaticResource ProgressSliderStyle}"
                         Thumb.DragStarted="ProgressSlider_DragStarted"
-                        Thumb.DragCompleted="ProgressSlider_DragCompleted"/>
+                        Thumb.DragCompleted="ProgressSlider_DragCompleted"
+                        PreviewMouseDown="ProgressSlider_PreviewMouseDown"/>
     
                 <TextBlock Grid.Column="2" 
                            x:Name="TotalTimeText" 
@@ -988,6 +1156,7 @@
                            VerticalAlignment="Center"
                            Margin="10,0,0,0"/>
             </Grid>
+            
         </Grid>
 
         <!-- Управление громкостью (справа) -->
@@ -1062,5 +1231,7 @@
                 Panel.ZIndex="0"
                 Background="Transparent"
                 IsHitTestVisible="False"/>
+        
+        
     </Grid>
 </Window>
